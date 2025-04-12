@@ -64,6 +64,7 @@ func krakenAssetCode(standardCode string) (string, error) {
 		"SOL":    "SOL.F",
 		"SUNDOG": "SUNDOG",
 		"TRUMP":  "TRUMP",
+		"GUN":    "GUN",
 	}
 
 	code, ok := hardcodedMap[strings.ToUpper(standardCode)]
