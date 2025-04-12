@@ -56,7 +56,7 @@ func PlaceLimitOrder(coin string, price float64, volume float64, isBuy bool, unt
 		orderType = "buy"
 	}
 
-	// In untradeable mode, use extreme prices to prevent order filling
+	// In untradeable mode, use extreme prices to prevent order filling. Estimated profit still shows the spread size.
 	if untradeable {
 		if isBuy {
 			price = math.Floor(price*0.1*1000) / 1000 // 90% below market for buy orders (1000 => truncate to 3 floatng pint numbers)
@@ -115,20 +115,23 @@ func PlaceLimitOrder(coin string, price float64, volume float64, isBuy bool, unt
 }
 
 // PlaceSpreadOrders places a spread of buy and sell orders
-func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untradeable bool) (string, string, error) {
+func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untradeable bool) (string, string, float64, error) {
+	// Calculate estimated profit
+	estimatedProfit := (spreadInfo.AskPrice - spreadInfo.BidPrice) * volume
+
 	// Place buy order at bid price
 	buyTxId, err := PlaceLimitOrder(coin, spreadInfo.BidPrice, volume, true, untradeable)
 	if err != nil {
-		return "", "", fmt.Errorf("error placing buy order: %v", err)
+		return "", "", 0, fmt.Errorf("error placing buy order: %v", err)
 	}
 
 	// Place sell order at ask price
 	sellTxId, err := PlaceLimitOrder(coin, spreadInfo.AskPrice, volume, false, untradeable)
 	if err != nil {
-		return "", "", fmt.Errorf("error placing sell order: %v", err)
+		return "", "", 0, fmt.Errorf("error placing sell order: %v", err)
 	}
 
-	return buyTxId, sellTxId, nil
+	return buyTxId, sellTxId, estimatedProfit, nil
 }
 
 // CheckOrderStatus checks and prints the status of a transaction ID
@@ -179,13 +182,6 @@ func CheckOrderStatus(txId string) (string, error) {
 
 	// Print order status
 	fmt.Printf("Order Status for TXID %s:\n", txId)
-	// fmt.Printf("Status: %s\n", order.Status)
-	// fmt.Printf("Type: %s\n", order.Descr.Type)
-	// fmt.Printf("Price: %s\n", order.Descr.Price)
-	// fmt.Printf("Volume: %s\n", order.Vol)
-	// fmt.Printf("Volume Executed: %s\n", order.VolExec)
-	// fmt.Printf("Cost: %s\n", order.Cost)
-	// fmt.Printf("Fee: %s\n", order.Fee)
 
 	// Check if order is successfully closed
 	if order.Status == "closed" {

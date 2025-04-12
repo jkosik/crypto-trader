@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# runs crypto-trader in a loop and opens consecutive trades after the previous one is closed
+# runs crypto-trader using "go run ." in a loop and opens consecutive trades after the previous one is closed.
 # run as ./loop.sh SOL 25
 
 COIN=$1

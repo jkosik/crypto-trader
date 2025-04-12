@@ -283,12 +283,14 @@ func main() {
 
 	// Place spread orders
 	if *orderFlag {
-		buyTxId, sellTxId, err := PlaceSpreadOrders(*baseCoin, spreadInfo, *volume, *untradeable)
+		buyTxId, sellTxId, estimatedProfit, err := PlaceSpreadOrders(*baseCoin, spreadInfo, *volume, *untradeable)
 		if err != nil {
 			fmt.Printf("Error placing orders: %v\n", err)
 			os.Exit(1)
 		}
 
+		// Estimated profit ignores -untradeable flag and always shows the spread size.
+		fmt.Printf("\nEstimated Profit: $%.2f USD\n", estimatedProfit)
 		fmt.Printf("\nBuy Order TXID: %s\n", buyTxId)
 		fmt.Printf("Sell Order TXID: %s\n", sellTxId)
 
@@ -310,12 +312,14 @@ func main() {
 			if buyStatus == "closed" && sellStatus == "closed" {
 				fmt.Println("\n🎉 🎉 🎉 TRADE COMPLETE! 🎉 🎉 🎉")
 				fmt.Println("Both buy and sell orders have been successfully executed.")
+				fmt.Printf("Actual Profit: $%.2f USD\n", estimatedProfit)
 				os.Exit(0)
 			}
 
 			if buyStatus == "canceled" && sellStatus == "canceled" {
 				fmt.Println("\n=== TRADE CANCELED! ===")
 				fmt.Println("Both buy and sell orders have been canceled.")
+				fmt.Printf("Unrealised Profit: $%.2f USD\n", estimatedProfit)
 				os.Exit(0)
 			}
 

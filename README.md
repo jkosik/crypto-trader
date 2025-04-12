@@ -11,18 +11,18 @@ Any exchange (crypto or stock) joins buyers who are placing the **buy orders for
 ### Example:
 ![Spread](readme/spread.png)
 
-Red: Ask price (Sell orders) 10.279  
+Red: Ask price (Sell orders) 10.279
 Green: Bid price (Buy orders) 10.276
 
 Ask price is always higher than the market price. Sellers (asset owners) want to sell for a higher price.
 Bid price is always lower than the market price. Buyers want always to buy cheaper.
 
-The logic behind the spread trading is mimicking the buyers and sellers - buy slightly below the mid price and sell slightly above the mid price and profit based on small price movements. 
+The logic behind the spread trading is mimicking the buyers and sellers - buy slightly below the mid price and sell slightly above the mid price and profit based on small price movements.
 There are also some risks associated (e.g. sudden market volatility, trading fees etc.)
 
 
 ## Run the bot
-Generate KRAKEN_API_KEY and KRAKEN_PRIVATE_KEY in your Kraken exchange profile and export them:
+Generate API key in the Settings of your profilewith the following permissions: `Query`, `Query open orders & trades`, `Query closed orders & trades`, `Create & modify orders`. You will receive `KRAKEN_API_KEY` and `KRAKEN_PRIVATE_KEY`. Export them:
 ```
 export KRAKEN_API_KEY=abcd
 export KRAKEN_PRIVATE_KEY=abcd
@@ -42,11 +42,11 @@ Usage of ./crypto-trader:
   -coin string
         Base coin to trade (e.g. BTC, SOL)
   -order
-        Place actual orders (default: false)
+        Place the orders (default: false). Otherwise dry-run without order placement.
   -untradeable
-        Place orders at untradeable prices (orders won't be executed - close them manually)
+        Place orders at inflated untradeable prices. Dry-run with order placement.
   -volume float
-        Volume to trade (default: 100.0)
+        Volume of cryptocoin to trade (default: 100.0)
 
 
 ./crypto-trader -coin TRUMP -order -volume 100.0
