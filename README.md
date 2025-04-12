@@ -66,4 +66,3 @@ func krakenAssetCode(standardCode string) (string, error) {
 	}
 ..snipped...
 ```
-
