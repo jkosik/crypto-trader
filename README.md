@@ -53,7 +53,8 @@ Usage of ./crypto-trader:
 ```
 
 ## Caveats
-The bot is using various Kraken API endpoints, e.g. for checking available balance and for placing the order. These endpoints returns the same cryptocoin with slightly different code. For that reason we need to map them to each other manunally and `krakenAssetCode` fuction is used. If you need to trade with custom trading pairs and cryptocoins, you may need to extend `krakenAssetCode` function.
+The bot CLI parameters recognise human-understandable base coin code (standard code, e.g. BTC). Some API endpoints however expect asset code. We need to do this transformation.
+Asset codes can be found when checking the account balance - run the bot without `-order` and see the balance output json and find your asset code. Afterwards add the pair into the `krakenAssetCode` function.
 ```
 // Balance and Ticker API ndpoints expect different asset codes. Conversion needed.
 func krakenAssetCode(standardCode string) (string, error) {
