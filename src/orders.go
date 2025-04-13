@@ -115,23 +115,26 @@ func PlaceLimitOrder(coin string, price float64, volume float64, isBuy bool, unt
 }
 
 // PlaceSpreadOrders places a spread of buy and sell orders
-func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untradeable bool) (string, string, float64, error) {
-	// Calculate estimated profit
+func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untradeable bool) (string, string, float64, float64, error) {
+	// Calculate estimated profit. Bid and ask prices are in USD and the differences is per one trading base coin unit.
 	estimatedProfit := (spreadInfo.AskPrice - spreadInfo.BidPrice) * volume
+
+	// Calculate estimated percent gain based on the buy price
+	estimatedPercentGain := ((spreadInfo.AskPrice - spreadInfo.BidPrice) / spreadInfo.BidPrice) * 100
 
 	// Place buy order at bid price
 	buyTxId, err := PlaceLimitOrder(coin, spreadInfo.BidPrice, volume, true, untradeable)
 	if err != nil {
-		return "", "", 0, fmt.Errorf("error placing buy order: %v", err)
+		return "", "", 0, 0, fmt.Errorf("error placing buy order: %v", err)
 	}
 
 	// Place sell order at ask price
 	sellTxId, err := PlaceLimitOrder(coin, spreadInfo.AskPrice, volume, false, untradeable)
 	if err != nil {
-		return "", "", 0, fmt.Errorf("error placing sell order: %v", err)
+		return "", "", 0, 0, fmt.Errorf("error placing sell order: %v", err)
 	}
 
-	return buyTxId, sellTxId, estimatedProfit, nil
+	return buyTxId, sellTxId, estimatedProfit, estimatedPercentGain, nil
 }
 
 // CheckOrderStatus checks and prints the status of a transaction ID

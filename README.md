@@ -52,6 +52,9 @@ Usage of ./crypto-trader:
 ./crypto-trader -coin TRUMP -order -volume 100.0
 ```
 
+## Slack notifications
+Optionally `export SLACK_WEBHOOK=xyz` to receive Slack notifications for succeeded trades.
+
 ## Caveats
 The bot CLI parameters recognise human-understandable base coin code (standard code, e.g. BTC). Some API endpoints however expect asset code. We need to do this transformation.
 Asset codes can be found when checking the account balance - run the bot without `-order` and see the balance output json and find your asset code. Afterwards add the pair into the `krakenAssetCode` function.
