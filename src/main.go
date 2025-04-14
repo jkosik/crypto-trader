@@ -297,18 +297,25 @@ func main() {
 		fmt.Printf("\nBuy Order TXID: %s", buyTxId)
 		fmt.Printf("\nSell Order TXID: %s\n", sellTxId)
 
+		// Wait till the orders are placed
+		time.Sleep(10 * time.Second)
+
 		// Check status of both orders until both are closed
 		for {
 			fmt.Printf("\n🟢 BUY %s status check\n", *baseCoin)
 			buyOrder, err := CheckOrderStatus(buyTxId)
 			if err != nil {
 				fmt.Printf("Error checking buy order status: %v\n", err)
+				time.Sleep(20 * time.Second)
+				continue
 			}
 
 			fmt.Printf("\n🔴 SELL %s status check\n", *baseCoin)
 			sellOrder, err := CheckOrderStatus(sellTxId)
 			if err != nil {
 				fmt.Printf("Error checking sell order status: %v\n", err)
+				time.Sleep(20 * time.Second)
+				continue
 			}
 
 			// If both orders are closed, print success message and exit
@@ -344,7 +351,7 @@ func main() {
 						"Profit: $%.2f\n"+
 						"Gain: %.2f%%\n"+
 						"Spread now: %.8f (%.4f%%)\n"+
-						"24h USD Volume: %.2f\n"+
+						"24h Volume: %.2f\n"+
 						"Fees: $%.2f (Buy: $%.2f, Sell: $%.2f)",
 					*baseCoin,
 					*volume,
@@ -370,7 +377,7 @@ func main() {
 				os.Exit(0)
 			}
 
-			// Wait before next iteration
+			// Check status every 20 seconds
 			time.Sleep(20 * time.Second)
 		}
 	} else {
