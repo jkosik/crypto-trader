@@ -221,8 +221,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	PrintTickerInfo(spreadInfo, *baseCoin)
-
 	// Get OHLC data for price comparison. Hard cap on 8 hours
 	if err := GetOHLCData(*baseCoin, 4*time.Hour); err != nil {
 		fmt.Printf("Error getting OHLC data: %v\n", err)
@@ -287,7 +285,7 @@ func main() {
 	// Place spread orders
 	if *orderFlag {
 
-		// Check if spread is within the boundaries
+		// Place order only if spread is within the boundaries
 		for {
 			// Calculate spread percentage
 			spreadInfo, err := GetTickerInfo(*baseCoin)
@@ -299,15 +297,29 @@ func main() {
 			spreadPercent := (spreadInfo.Spread / spreadInfo.BidPrice) * 100
 			fmt.Printf("\nCurrent spread: %.4f%%\n", spreadPercent)
 
-			// Only proceed if spread is less than 3%
-			if spreadPercent >= 3.0 {
-				fmt.Println("❌ Spread is too high (>= 3%). Sleeping for a while...")
+			// Get 24h volume
+			volume24h, err := Get24hVolume(*baseCoin)
+			if err != nil {
+				fmt.Printf("Error getting 24h volume: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Printf("24h Volume: %.2f USD\n", volume24h)
+
+			// Do not proceed for too high spread
+			if spreadPercent > 3.0 {
+				fmt.Println("❌ Spread is too high (> 3%). Sleeping for a while...")
 				time.Sleep(10 * time.Second)
 				continue
-			} else {
-				fmt.Println("✅ Spread is within the boundaries. Placing orders.")
 			}
+			// Do not proceed for too low volume
+			if volume24h < 500000 {
+				fmt.Println("❌ 24h volume is too low (< 500 000 USD). Sleeping for a while...")
+				time.Sleep(10 * time.Second)
+				continue
+			}
+			fmt.Println("✅ Spread and volume are within the boundaries. Placing orders.")
 			break
+
 		}
 
 		buyTxId, sellTxId, estimatedProfit, estimatedPercentGain, err := PlaceSpreadOrders(*baseCoin, spreadInfo, *volume, *untradeable)
