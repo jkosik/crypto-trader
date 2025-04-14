@@ -286,10 +286,36 @@ func main() {
 
 	// Place spread orders
 	if *orderFlag {
+
+		// Check if spread is within the boundaries
+		for {
+			// Calculate spread percentage
+			spreadInfo, err := GetTickerInfo(*baseCoin)
+			if err != nil {
+				fmt.Println("Error getting spread boundary:", err)
+				os.Exit(1)
+			}
+
+			spreadPercent := (spreadInfo.Spread / spreadInfo.BidPrice) * 100
+			fmt.Printf("\nCurrent spread: %.4f%%\n", spreadPercent)
+
+			// Only proceed if spread is less than 3%
+			if spreadPercent >= 3.0 {
+				fmt.Println("❌ Spread is too high (>= 3%). Sleeping for a while...")
+				time.Sleep(10 * time.Second)
+				continue
+			} else {
+				fmt.Println("✅ Spread is within the boundaries. Placing orders.")
+			}
+			break
+		}
+
 		buyTxId, sellTxId, estimatedProfit, estimatedPercentGain, err := PlaceSpreadOrders(*baseCoin, spreadInfo, *volume, *untradeable)
 		if err != nil {
 			fmt.Printf("Error placing orders: %v\n", err)
 			os.Exit(1)
+		} else {
+			fmt.Println("✅ Orders placed successfully.")
 		}
 
 		// Estimated profit ignores -untradeable flag and always shows the spread size.
