@@ -138,7 +138,7 @@ func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untr
 }
 
 // CheckOrderStatus checks and prints the status of a transaction ID
-func CheckOrderStatus(txId string) (string, error) {
+func CheckOrderStatus(txId string) (*OrderStatus, error) {
 	urlBase := "https://api.kraken.com"
 	urlPath := "/0/private/QueryOrders"
 
@@ -154,13 +154,13 @@ func CheckOrderStatus(txId string) (string, error) {
 	// Get signature for the request
 	signature, err := getKrakenSignature(urlPath, payload, os.Getenv("KRAKEN_PRIVATE_KEY"))
 	if err != nil {
-		return "", fmt.Errorf("error generating signature: %v", err)
+		return nil, fmt.Errorf("error generating signature: %v", err)
 	}
 
 	// Make request
 	body, err := makePrivateRequest(urlBase+urlPath, "POST", payload, os.Getenv("KRAKEN_API_KEY"), signature)
 	if err != nil {
-		return "", fmt.Errorf("error making request: %v", err)
+		return nil, fmt.Errorf("error making request: %v", err)
 	}
 
 	// Parse response
@@ -170,21 +170,18 @@ func CheckOrderStatus(txId string) (string, error) {
 	}
 
 	if err := json.Unmarshal(body, &response); err != nil {
-		return "", fmt.Errorf("error parsing response: %v", err)
+		return nil, fmt.Errorf("error parsing response: %v", err)
 	}
 
 	if len(response.Error) > 0 {
-		return "", fmt.Errorf("API error: %v", response.Error)
+		return nil, fmt.Errorf("API error: %v", response.Error)
 	}
 
 	// Get order status
 	order, exists := response.Result[txId]
 	if !exists {
-		return "", fmt.Errorf("order not found")
+		return nil, fmt.Errorf("order not found")
 	}
-
-	// Print order status
-	fmt.Printf("Order Status for TXID %s:\n", txId)
 
 	// Check if order is successfully closed
 	if order.Status == "closed" {
@@ -202,7 +199,7 @@ func CheckOrderStatus(txId string) (string, error) {
 		fmt.Println("⏳ ORDER OPEN: Waiting for execution")
 	}
 
-	return order.Status, nil
+	return &order, nil
 }
 
 // Helper function to parse float from string

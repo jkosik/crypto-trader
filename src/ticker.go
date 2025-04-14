@@ -107,7 +107,7 @@ func Ticker(coin string) (*SpreadInfo, error) {
 // PrintTickerInfo prints the spread information for a trading pair
 func PrintTickerInfo(info *SpreadInfo, coin string) {
 	spreadPercent := (info.Spread / info.BidPrice) * 100
-	fmt.Printf("\n%s/USD Spread & High/LowInformation:\n", coin)
+	fmt.Printf("\n%s/USD Spread & High/Low Information (Ticker API):\n", coin)
 	fmt.Printf("Bid Price: %.8f\n", info.BidPrice)
 	fmt.Printf("Ask Price: %.8f\n", info.AskPrice)
 	fmt.Printf("Spread: %.8f (%.4f%%)\n", info.Spread, spreadPercent)

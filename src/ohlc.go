@@ -83,7 +83,7 @@ func GetOHLCData(coin string, duration time.Duration) error {
 	priceChange := ((currentData.Close - oldData.Close) / oldData.Close) * 100
 
 	// Print the information
-	fmt.Printf("\n%s/USD Price Change (%s):\n", coin, duration)
+	fmt.Printf("\n%s/USD Price Change in imeframe %s (OHLC API):\n", coin, duration)
 	fmt.Printf("Current Price: %.8f\n", currentData.Close)
 	fmt.Printf("Price %s ago: %.8f\n", duration, oldData.Close)
 	fmt.Printf("Price Change: %.2f%%\n", priceChange)

@@ -66,6 +66,7 @@ func krakenAssetCode(standardCode string) (string, error) {
 		"TRUMP":  "TRUMP",
 		"GUN":    "GUN",
 		"OCEAN":  "OCEAN",
+		"GHIBLI": "GHIBLI",
 	}
 
 	code, ok := hardcodedMap[strings.ToUpper(standardCode)]
@@ -292,37 +293,77 @@ func main() {
 		}
 
 		// Estimated profit ignores -untradeable flag and always shows the spread size.
-		fmt.Printf("\nEstimated Profit: %.2f USD (gain: %.2f%%)\n", estimatedProfit, estimatedPercentGain)
-		fmt.Printf("\nBuy Order TXID: %s\n", buyTxId)
-		fmt.Printf("Sell Order TXID: %s\n", sellTxId)
+		fmt.Printf("\nEstimated Profit: %.2f USD (Gain: %.2f%%)", estimatedProfit, estimatedPercentGain)
+		fmt.Printf("\nBuy Order TXID: %s", buyTxId)
+		fmt.Printf("\nSell Order TXID: %s\n", sellTxId)
 
 		// Check status of both orders until both are closed
 		for {
 			fmt.Printf("\n🟢 BUY %s status check\n", *baseCoin)
-			buyStatus, err := CheckOrderStatus(buyTxId)
+			buyOrder, err := CheckOrderStatus(buyTxId)
 			if err != nil {
 				fmt.Printf("Error checking buy order status: %v\n", err)
 			}
 
 			fmt.Printf("\n🔴 SELL %s status check\n", *baseCoin)
-			sellStatus, err := CheckOrderStatus(sellTxId)
+			sellOrder, err := CheckOrderStatus(sellTxId)
 			if err != nil {
 				fmt.Printf("Error checking sell order status: %v\n", err)
 			}
 
 			// If both orders are closed, print success message and exit
-			if buyStatus == "closed" && sellStatus == "closed" {
+			if buyOrder.Status == "closed" && sellOrder.Status == "closed" {
 				fmt.Println("\n🎉 🎉 🎉 TRADE COMPLETE! 🎉 🎉 🎉")
 				fmt.Println("Both buy and sell orders have been successfully executed.")
-				fmt.Printf("Actual Profit: %.2f USD (Gain: %.2f%%)\n", estimatedProfit, estimatedPercentGain)
-				err := SendSlackMessage(fmt.Sprintf("Trade %s in the volume %.5f executed (Profit: $%.2f, Gain: %.2f%%)", *baseCoin, *volume, estimatedProfit, estimatedPercentGain))
+
+				// Get current spread information
+				currentSpreadInfo, err := GetTickerInfo(*baseCoin)
 				if err != nil {
-					fmt.Printf("Error sending Slack message: %v\n", err)
+					fmt.Printf("Error getting current spread info: %v\n", err)
+				}
+
+				// Calculate spread information
+				spread := currentSpreadInfo.Spread
+				spreadPercent := (spread / currentSpreadInfo.BidPrice) * 100
+
+				// Get 24h volume
+				volume24h, err := Get24hVolume(*baseCoin)
+				if err != nil {
+					fmt.Printf("Error getting 24h volume: %v\n", err)
+				}
+
+				// Calculate total fees
+				buyFee, _ := strconv.ParseFloat(buyOrder.Fee, 64)
+				sellFee, _ := strconv.ParseFloat(sellOrder.Fee, 64)
+				totalFees := buyFee + sellFee
+
+				fmt.Printf("Actual Profit: %.2f USD (Gain:%.2f%%)\n", estimatedProfit, estimatedPercentGain)
+				fmt.Printf("Total Fees: %.2f USD (Buy: %.2f, Sell: %.2f)\n", totalFees, buyFee, sellFee)
+				slackErr := SendSlackMessage(fmt.Sprintf(
+					"Trade %s in the volume %.5f executed\n"+
+						"Profit: $%.2f\n"+
+						"Gain: %.2f%%\n"+
+						"Spread now: %.8f (%.4f%%)\n"+
+						"24h USD Volume: %.2f\n"+
+						"Fees: $%.2f (Buy: $%.2f, Sell: $%.2f)",
+					*baseCoin,
+					*volume,
+					estimatedProfit,
+					estimatedPercentGain,
+					spread,
+					spreadPercent,
+					volume24h,
+					totalFees,
+					buyFee,
+					sellFee,
+				))
+				if slackErr != nil {
+					fmt.Printf("Error sending Slack message: %v\n", slackErr)
 				}
 				os.Exit(0)
 			}
 
-			if buyStatus == "canceled" && sellStatus == "canceled" {
+			if buyOrder.Status == "canceled" && sellOrder.Status == "canceled" {
 				fmt.Println("\n=== TRADE CANCELED! ===")
 				fmt.Println("Both buy and sell orders have been canceled.")
 				fmt.Printf("Unrealised Profit: %.2f USD (Gain: %.2f%%)\n", estimatedProfit, estimatedPercentGain)
