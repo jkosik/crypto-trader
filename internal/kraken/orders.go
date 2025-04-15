@@ -1,4 +1,4 @@
-package main
+package kraken
 
 import (
 	"encoding/json"
@@ -76,13 +76,13 @@ func PlaceLimitOrder(coin string, price float64, volume float64, isBuy bool, unt
 	}`, nonce, orderType, coin, price, volume)
 
 	// Get signature for the request
-	signature, err := getKrakenSignature(urlPath, payload, os.Getenv("KRAKEN_PRIVATE_KEY"))
+	signature, err := GetKrakenSignature(urlPath, payload, os.Getenv("KRAKEN_PRIVATE_KEY"))
 	if err != nil {
 		return "", fmt.Errorf("error generating signature: %v", err)
 	}
 
 	// Make request
-	body, err := makePrivateRequest(urlBase+urlPath, "POST", payload, os.Getenv("KRAKEN_API_KEY"), signature)
+	body, err := MakePrivateRequest(urlBase+urlPath, "POST", payload, os.Getenv("KRAKEN_API_KEY"), signature)
 	if err != nil {
 		return "", fmt.Errorf("error making request: %v", err)
 	}
@@ -152,13 +152,13 @@ func CheckOrderStatus(txId string) (*OrderStatus, error) {
 	}`, nonce, txId)
 
 	// Get signature for the request
-	signature, err := getKrakenSignature(urlPath, payload, os.Getenv("KRAKEN_PRIVATE_KEY"))
+	signature, err := GetKrakenSignature(urlPath, payload, os.Getenv("KRAKEN_PRIVATE_KEY"))
 	if err != nil {
 		return nil, fmt.Errorf("error generating signature: %v", err)
 	}
 
 	// Make request
-	body, err := makePrivateRequest(urlBase+urlPath, "POST", payload, os.Getenv("KRAKEN_API_KEY"), signature)
+	body, err := MakePrivateRequest(urlBase+urlPath, "POST", payload, os.Getenv("KRAKEN_API_KEY"), signature)
 	if err != nil {
 		return nil, fmt.Errorf("error making request: %v", err)
 	}

@@ -1,4 +1,4 @@
-package main
+package kraken
 
 import (
 	"encoding/json"
@@ -23,11 +23,8 @@ type OHLCData struct {
 	Volume float64
 }
 
-// GetOHLCData retrieves OHLC data for a given trading pair
+// GetOHLCData retrieves OHLC data for a given coin and time interval
 func GetOHLCData(coin string, duration time.Duration) error {
-	// Convert coin to Kraken pair format (e.g., "SUNDOG" -> "SUNDOG/USD")
-	pair := coin + "/USD"
-
 	// Limit duration to 8 hours
 	if duration > 8*time.Hour {
 		duration = 8 * time.Hour
@@ -38,10 +35,12 @@ func GetOHLCData(coin string, duration time.Duration) error {
 	minutesNeeded := int(duration.Minutes())
 	candlesNeeded := minutesNeeded + 1 // +1 for current candle
 
+	// Convert coin to Kraken pair format (e.g., "SUNDOG" -> "SUNDOG/USD")
+	pair := coin + "/USD"
 	// Get OHLC data from public API
 	url := fmt.Sprintf("https://api.kraken.com/0/public/OHLC?pair=%s&interval=1", pair)
 
-	body, err := makePublicRequest(url, "GET")
+	body, err := MakePublicRequest(url, "GET")
 	if err != nil {
 		return fmt.Errorf("error getting OHLC data: %v", err)
 	}
@@ -83,7 +82,7 @@ func GetOHLCData(coin string, duration time.Duration) error {
 	priceChange := ((currentData.Close - oldData.Close) / oldData.Close) * 100
 
 	// Print the information
-	fmt.Printf("\n%s/USD Price Change in imeframe %s (OHLC API):\n", coin, duration)
+	fmt.Printf("\n%s/USD Price Change in timeframe %s (OHLC API):\n", coin, duration)
 	fmt.Printf("Current Price: %.8f\n", currentData.Close)
 	fmt.Printf("Price %s ago: %.8f\n", duration, oldData.Close)
 	fmt.Printf("Price Change: %.2f%%\n", priceChange)

@@ -1,4 +1,4 @@
-package main
+package kraken
 
 import (
 	"encoding/json"
@@ -30,7 +30,7 @@ func Get24hVolume(coin string) (float64, error) {
 	// Get ticker data from public API
 	url := fmt.Sprintf("https://api.kraken.com/0/public/Ticker?pair=%s", pair)
 
-	body, err := makePublicRequest(url, "GET")
+	body, err := MakePublicRequest(url, "GET")
 	if err != nil {
 		return 0, fmt.Errorf("error making request: %v", err)
 	}

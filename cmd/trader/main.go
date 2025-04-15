@@ -1,18 +1,12 @@
 package main
 
 import (
-	"crypto/hmac"
-	"crypto/sha256"
-	"crypto/sha512"
-	"encoding/base64"
+	"crypto-trader/internal/kraken"
 	"encoding/json"
 	"flag"
 	"fmt"
-	"io"
-	"net/http"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -20,112 +14,6 @@ import (
 type BalanceData struct {
 	Balance   string `json:"balance"`
 	HoldTrade string `json:"hold_trade"`
-}
-
-func getKrakenSignature(urlPath string, payload string, secret string) (string, error) {
-	// Parse the JSON payload
-	var jsonData map[string]interface{}
-	if err := json.Unmarshal([]byte(payload), &jsonData); err != nil {
-		return "", fmt.Errorf("Failed to parse JSON payload: %v", err)
-	}
-
-	// Get nonce from the parsed JSON
-	nonce, ok := jsonData["nonce"].(string)
-	if !ok {
-		return "", fmt.Errorf("Nonce not found in payload or not a string")
-	}
-
-	// Create the encoded data string
-	encodedData := nonce + payload
-
-	sha := sha256.New()
-	sha.Write([]byte(encodedData))
-	shaSum := sha.Sum(nil)
-
-	message := append([]byte(urlPath), shaSum...)
-
-	decodedSecret, err := base64.StdEncoding.DecodeString(secret)
-	if err != nil {
-		return "", fmt.Errorf("Failed to decode secret: %v", err)
-	}
-
-	mac := hmac.New(sha512.New, decodedSecret)
-	mac.Write(message)
-	macSum := mac.Sum(nil)
-	sigDigest := base64.StdEncoding.EncodeToString(macSum)
-	return sigDigest, nil
-}
-
-// Balance and Ticker API endpoints expect different asset codes. Conversion needed.
-func krakenAssetCode(standardCode string) (string, error) {
-	hardcodedMap := map[string]string{
-		"BTC":    "XBT.F",
-		"ETH":    "ETH",
-		"SOL":    "SOL.F",
-		"SUNDOG": "SUNDOG",
-		"TRUMP":  "TRUMP",
-		"GUN":    "GUN",
-		"OCEAN":  "OCEAN",
-		"GHIBLI": "GHIBLI",
-	}
-
-	code, ok := hardcodedMap[strings.ToUpper(standardCode)]
-	if !ok {
-		return "", fmt.Errorf("unknown standard code: %s", standardCode)
-	}
-	return code, nil
-}
-
-// makePublicRequest makes a request to Kraken's public API endpoints
-func makePublicRequest(url string, method string) ([]byte, error) {
-	client := &http.Client{}
-	req, err := http.NewRequest(method, url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("error creating request: %v", err)
-	}
-
-	req.Header.Add("Accept", "application/json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("error making request: %v", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("error reading response: %v", err)
-	}
-
-	return body, nil
-}
-
-// makePrivateRequest makes a request to Kraken's private API endpoints with auth
-func makePrivateRequest(url string, method string, payload string, apiKey string, signature string) ([]byte, error) {
-	client := &http.Client{}
-	req, err := http.NewRequest(method, url, strings.NewReader(payload))
-	if err != nil {
-		return nil, fmt.Errorf("error creating request: %v", err)
-	}
-
-	// Add headers for private API
-	req.Header.Add("API-Key", apiKey)
-	req.Header.Add("API-Sign", signature)
-	req.Header.Add("Accept", "application/json")
-	req.Header.Add("Content-Type", "application/json")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("error making request: %v", err)
-	}
-	defer resp.Body.Close()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("error reading response: %v", err)
-	}
-
-	return body, nil
 }
 
 func getCoinBalance(body []byte, coin string) (BalanceData, error) {
@@ -169,7 +57,7 @@ func main() {
 	}
 
 	// Get Kraken asset code for the selected coin
-	baseCoinBalanceCode, err := krakenAssetCode(*baseCoin)
+	baseCoinBalanceCode, err := kraken.KrakenAssetCode(*baseCoin)
 	if err != nil {
 		fmt.Printf("Error getting Kraken asset code: %v\n", err)
 		os.Exit(1)
@@ -199,13 +87,13 @@ func main() {
 		"nonce": "%d"
 	}`, nonce)
 
-	signature, err := getKrakenSignature(urlPath, payload, apiSecret)
+	signature, err := kraken.GetKrakenSignature(urlPath, payload, apiSecret)
 	if err != nil {
 		fmt.Println("Error generating signature:", err)
 		os.Exit(1)
 	}
 
-	balanceBody, err := makePrivateRequest(urlBase+urlPath, "POST", payload, apiKey, signature)
+	balanceBody, err := kraken.MakePrivateRequest(urlBase+urlPath, "POST", payload, apiKey, signature)
 	if err != nil {
 		fmt.Println("Error making request:", err)
 		os.Exit(1)
@@ -215,14 +103,14 @@ func main() {
 	fmt.Println(string(balanceBody))
 
 	// Get spread boundary for base coin
-	spreadInfo, err := GetTickerInfo(*baseCoin)
+	spreadInfo, err := kraken.GetTickerInfo(*baseCoin)
 	if err != nil {
 		fmt.Println("Error getting spread boundary:", err)
 		os.Exit(1)
 	}
 
 	// Get OHLC data for price comparison. Hard cap on 8 hours
-	if err := GetOHLCData(*baseCoin, 4*time.Hour); err != nil {
+	if err := kraken.GetOHLCData(*baseCoin, 4*time.Hour); err != nil {
 		fmt.Printf("Error getting OHLC data: %v\n", err)
 	}
 
@@ -284,11 +172,10 @@ func main() {
 
 	// Place spread orders
 	if *orderFlag {
-
 		// Place order only if spread is within the boundaries
 		for {
 			// Calculate spread percentage
-			spreadInfo, err := GetTickerInfo(*baseCoin)
+			spreadInfo, err := kraken.GetTickerInfo(*baseCoin)
 			if err != nil {
 				fmt.Println("Error getting spread boundary:", err)
 				os.Exit(1)
@@ -298,7 +185,7 @@ func main() {
 			fmt.Printf("\nCurrent spread: %.4f%%\n", spreadPercent)
 
 			// Get 24h volume
-			volume24h, err := Get24hVolume(*baseCoin)
+			volume24h, err := kraken.Get24hVolume(*baseCoin)
 			if err != nil {
 				fmt.Printf("Error getting 24h volume: %v\n", err)
 				os.Exit(1)
@@ -306,23 +193,22 @@ func main() {
 			fmt.Printf("24h Volume: %.2f USD\n", volume24h)
 
 			// Do not proceed for too high spread
-			if spreadPercent > 3.0 {
+			if spreadPercent > 4.0 {
 				fmt.Println("❌ Spread is too high (> 3%). Sleeping for a while...")
 				time.Sleep(10 * time.Second)
 				continue
 			}
 			// Do not proceed for too low volume
-			if volume24h < 500000 {
+			if volume24h < 10000 {
 				fmt.Println("❌ 24h volume is too low (< 500 000 USD). Sleeping for a while...")
 				time.Sleep(10 * time.Second)
 				continue
 			}
 			fmt.Println("✅ Spread and volume are within the boundaries. Placing orders.")
 			break
-
 		}
 
-		buyTxId, sellTxId, estimatedProfit, estimatedPercentGain, err := PlaceSpreadOrders(*baseCoin, spreadInfo, *volume, *untradeable)
+		buyTxId, sellTxId, estimatedProfit, estimatedPercentGain, err := kraken.PlaceSpreadOrders(*baseCoin, spreadInfo, *volume, *untradeable)
 		if err != nil {
 			fmt.Printf("Error placing orders: %v\n", err)
 			os.Exit(1)
@@ -341,7 +227,7 @@ func main() {
 		// Check status of both orders until both are closed
 		for {
 			fmt.Printf("\n🟢 BUY %s status check\n", *baseCoin)
-			buyOrder, err := CheckOrderStatus(buyTxId)
+			buyOrder, err := kraken.CheckOrderStatus(buyTxId)
 			if err != nil {
 				fmt.Printf("Error checking buy order status: %v\n", err)
 				time.Sleep(20 * time.Second)
@@ -349,7 +235,7 @@ func main() {
 			}
 
 			fmt.Printf("\n🔴 SELL %s status check\n", *baseCoin)
-			sellOrder, err := CheckOrderStatus(sellTxId)
+			sellOrder, err := kraken.CheckOrderStatus(sellTxId)
 			if err != nil {
 				fmt.Printf("Error checking sell order status: %v\n", err)
 				time.Sleep(20 * time.Second)
@@ -362,7 +248,7 @@ func main() {
 				fmt.Println("Both buy and sell orders have been successfully executed.")
 
 				// Get current spread information
-				currentSpreadInfo, err := GetTickerInfo(*baseCoin)
+				currentSpreadInfo, err := kraken.GetTickerInfo(*baseCoin)
 				if err != nil {
 					fmt.Printf("Error getting current spread info: %v\n", err)
 				}
@@ -372,7 +258,7 @@ func main() {
 				spreadPercent := (spread / currentSpreadInfo.BidPrice) * 100
 
 				// Get 24h volume
-				volume24h, err := Get24hVolume(*baseCoin)
+				volume24h, err := kraken.Get24hVolume(*baseCoin)
 				if err != nil {
 					fmt.Printf("Error getting 24h volume: %v\n", err)
 				}
@@ -384,7 +270,7 @@ func main() {
 
 				fmt.Printf("Actual Profit: %.2f USD (Gain:%.2f%%)\n", estimatedProfit, estimatedPercentGain)
 				fmt.Printf("Total Fees: %.2f USD (Buy: %.2f, Sell: %.2f)\n", totalFees, buyFee, sellFee)
-				slackErr := SendSlackMessage(fmt.Sprintf(
+				slackErr := kraken.SendSlackMessage(fmt.Sprintf(
 					"Trade %s in the volume %.5f executed\n"+
 						"Profit: $%.2f\n"+
 						"Gain: %.2f%%\n"+
