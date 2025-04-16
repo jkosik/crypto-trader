@@ -1,10 +1,17 @@
 # Crypto Trader
 
-Crypto Trader is bot executing automated spread trades on Kraken crypto exchange.
+A trading bot for cryptocurrency markets that executes trades based on price spreads.
+
+## Features
+
+- Automated trading based on price spreads
+- Support for multiple cryptocurrencies
+- Price monitoring and limit order placement
+- Automatic order cancellation when price limits are exceeded
+- Detailed logging and reporting
 
 ## What is spread trading
 Any exchange (crypto or stock) joins buyers who are placing the **buy orders for the Bid price** and sellers who are placing **sell orders for the Ask price**. Bid and Ask price oscilate around **mid price, which can be considered as the market price**. All bids and asks are collected in the **order book** of the exchanage and wait for execution. When the Bid or Ask price is far away frome the market price, the order may be never executed.
-
 
 **Spread** is the difference between the Bid and Ask price closest to the mid price. These prices has the highest probability of being executed. Spread size depends on market conditions, asset volatility and liquidity and is mostly between 0.01 - 0.5%.
 
@@ -20,54 +27,95 @@ Bid price is always lower than the market price. Buyers want always to buy cheap
 The logic behind the spread trading is mimicking the buyers and sellers - buy slightly below the mid price and sell slightly above the mid price and profit based on small price movements.
 There are also some risks associated (e.g. sudden market volatility, trading fees etc.)
 
+## Setup
 
-## Run the bot
-Generate API key in the Settings of your profilewith the following permissions: `Query`, `Query open orders & trades`, `Query closed orders & trades`, `Create & modify orders`. You will receive `KRAKEN_API_KEY` and `KRAKEN_PRIVATE_KEY`. Export them:
-```
-export KRAKEN_API_KEY=abcd
-export KRAKEN_PRIVATE_KEY=abcd
-```
+1. Generate API key in the Settings of your Kraken profile with the following permissions:
+   - `Query`
+   - `Query open orders & trades`
+   - `Query closed orders & trades`
+   - `Create & modify orders`
 
-Compile the binary (alternatively run by `go run .`):
-```
-# from root
-go mod tidy
-go build -o bin/trader ./cmd/trader
-go build -o bin/loop ./cmd/loop
-```
+2. Export your API credentials:
+   ```bash
+   export KRAKEN_API_KEY=your_api_key
+   export KRAKEN_PRIVATE_KEY=your_private_key
+   export SLACK_WEBHOOK=your_webhook_url  # Optional
+   ```
 
-Run as:
-```
-❯ ./trader -h
-Usage of ./crypto-trader:
-  -coin string
-        Base coin to trade (e.g. BTC, SOL)
-  -order
-        Place actual orders (default: false)
-  -untradeable
-        Place orders at untradeable prices (orders won't be executed - close them manually)
-  -volume float
-        Base coin volume to trade
+3. Build the binaries:
+   ```bash
+   go mod tidy
+   go build -o bin/trader ./cmd/trader
+   go build -o bin/loop ./cmd/loop
+   ```
 
+## Usage
 
-./trader -coin SUNDOG -volume 100.0 -order
+### Trader Bot
+```bash
+go run cmd/trader/main.go -coin <COIN> -volume <AMOUNT> [-order] [-untradeable]
 ```
 
-## Slack notifications
-Optionally `export SLACK_WEBHOOK=xyz` to receive Slack notifications for succeeded trades.
+### Loop Bot
+```bash
+go run cmd/loop/main.go -coin <COIN> -volume <AMOUNT> -limitprice <PRICE> [-iterations <NUMBER>]
+```
+
+### Flags
+- `-coin`: Base coin to trade (e.g. BTC, SOL)
+- `-volume`: Base coin volume to trade
+- `-order`: Place actual orders (default: false)
+- `-untradeable`: Place orders at untradeable prices (orders won't be executed - close them manually)
+- `-limitprice`: Maximum price limit for the base coin
+- `-iterations`: Number of trades to execute (default: 10)
+
+## Examples
+
+### Execute a single trade
+```bash
+go run cmd/trader/main.go -coin SUNDOG -volume 100.0 -order
+```
+
+### Execute multiple trades with price monitoring
+```bash
+go run cmd/loop/main.go -coin SUNDOG -volume 300 -limitprice 0.05 -iterations 2
+```
+
+## Asset Codes
+The bot handles conversion between human-readable coin codes and Kraken's asset codes automatically. For example:
+- BTC → XBT.F
+- ETH → ETH
+- SOL → SOL.F
+- SUNDOG → SUNDOG
+
+When checking account balance or filtering orders, the bot uses the appropriate asset code format for each API endpoint.
 
 ## Caveats
-The bot CLI parameters recognise human-understandable base coin code (standard code, e.g. BTC). Some API endpoints however expect asset code. We need to do this transformation.
-Asset codes can be found when checking the account balance - run the bot without `-order` and see the balance output json and find your asset code. Afterwards add the pair into the `kraken.KrakenAssetCode` function.
-```
-// Balance and Ticker API ndpoints expect different asset codes. Conversion needed.
-func krakenAssetCode(standardCode string) (string, error) {
-	hardcodedMap := map[string]string{
-		"BTC":    "XBT.F",
-		"ETH":    "ETH",
-		"SOL":    "SOL.F",
-		"SUNDOG": "SUNDOG",
-		"TRUMP":  "TRUMP",
-	}
-..snipped...
+1. The bot CLI parameters recognize human-understandable base coin codes (standard code, e.g. BTC)
+2. Some API endpoints expect asset codes (e.g. XBT.F for BTC)
+3. The bot automatically handles this conversion using the `KrakenAssetCode` function
+4. New trading pairs need to be added to the `KrakenAssetCode` function's mapping
+
+## Development
+To add support for a new trading pair:
+1. Run the bot without `-order` to see the balance output
+2. Find your asset code in the balance output
+3. Add the pair to the `KrakenAssetCode` function in `internal/kraken/api.go`
+
+Example:
+```go
+func KrakenAssetCode(standardCode string) (string, error) {
+    hardcodedMap := map[string]string{
+        "BTC":    "XBT.F",
+        "ETH":    "ETH",
+        "SOL":    "SOL.F",
+        "SUNDOG": "SUNDOG",
+        "TRUMP":  "TRUMP",
+        "GUN":    "GUN",
+        "OCEAN":  "OCEAN",
+        "GHIBLI": "GHIBLI",
+    }
+    // Add your new pair here
+    // ...
+}
 ```
