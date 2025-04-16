@@ -151,6 +151,7 @@ func main() {
 		// Place order only if spread is within the boundaries
 		for {
 			// Calculate spread percentage
+			fmt.Println("Getting fresh spread boundary to assess max. spread and min. volume...")
 			spreadInfo, err := kraken.GetTickerInfo(*baseCoin)
 			if err != nil {
 				fmt.Println("Error getting spread boundary:", err)
