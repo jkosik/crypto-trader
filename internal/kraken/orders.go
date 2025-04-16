@@ -6,6 +6,7 @@ import (
 	"math"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -40,6 +41,14 @@ type OrderStatus struct {
 	VolExec string `json:"vol_exec"`
 	Cost    string `json:"cost"`
 	Fee     string `json:"fee"`
+}
+
+// OpenOrdersResponse represents the response from the Kraken API for open orders
+type OpenOrdersResponse struct {
+	Error  []string `json:"error"`
+	Result struct {
+		Open map[string]OrderStatus `json:"open"`
+	} `json:"result"`
 }
 
 // PlaceLimitOrder places a limit order on Kraken
@@ -206,4 +215,152 @@ func CheckOrderStatus(txId string) (*OrderStatus, error) {
 func parseFloat(s string) float64 {
 	f, _ := strconv.ParseFloat(s, 64)
 	return f
+}
+
+// GetOpenOrders retrieves all open orders for a given trading pair
+func GetOpenOrders(coin string) (map[string]OrderStatus, error) {
+	urlBase := "https://api.kraken.com"
+	urlPath := "/0/private/OpenOrders"
+
+	// Create nonce
+	nonce := time.Now().UnixNano() / int64(time.Millisecond)
+
+	// Create payload
+	payload := fmt.Sprintf(`{
+		"nonce": "%d"
+	}`, nonce)
+
+	// Get signature for the request
+	signature, err := GetKrakenSignature(urlPath, payload, os.Getenv("KRAKEN_PRIVATE_KEY"))
+	if err != nil {
+		return nil, fmt.Errorf("error generating signature: %v", err)
+	}
+
+	// Make request
+	body, err := MakePrivateRequest(urlBase+urlPath, "POST", payload, os.Getenv("KRAKEN_API_KEY"), signature)
+	if err != nil {
+		return nil, fmt.Errorf("error making request: %v", err)
+	}
+
+	// Debug: Print raw response body
+	// fmt.Printf("\n[DEBUG] Raw API response body:\n%s\n", string(body))
+
+	// Parse response
+	var response OpenOrdersResponse
+	if err := json.Unmarshal(body, &response); err != nil {
+		return nil, fmt.Errorf("error parsing response: %v", err)
+	}
+
+	if len(response.Error) > 0 {
+		return nil, fmt.Errorf("API error: %v", response.Error)
+	}
+
+	// Debug: Print all orders before filtering
+	// if len(response.Result.Open) == 0 {
+	// 	fmt.Println("[DEBUG] No open orders found in the account")
+	// } else {
+	// 	fmt.Printf("[DEBUG] Found %d total open orders (of any pairs) in the account\n", len(response.Result.Open))
+	// 	for txId, order := range response.Result.Open {
+	// 		fmt.Printf("[DEBUG] Order %s: Status=%s, Description=%s, Type=%s, Price=%s, Volume=%s\n", txId, order.Status, order.Descr.Order, order.Descr.Type, order.Descr.Price, order.Vol)
+	// 	}
+	// }
+
+	// Filter orders for the specific coin
+	filteredOrders := make(map[string]OrderStatus)
+	pair := coin + "USD"
+	for txId, order := range response.Result.Open {
+		// Skip empty orders
+		if order.Status == "" || order.Descr.Order == "" {
+			// fmt.Printf("[DEBUG] Skipping empty order %s\n", txId)
+			continue
+		}
+		// Check if the order description contains the pair
+		if strings.Contains(order.Descr.Order, pair) {
+			filteredOrders[txId] = order
+			// fmt.Printf("[DEBUG] Found matching order %s: %s\n", txId, order.Descr.Order)
+		} else {
+			// fmt.Printf("[DEBUG] Order %s does not match pair %s: %s\n", txId, pair, order.Descr.Order)
+		}
+	}
+
+	return filteredOrders, nil
+}
+
+// CancelOrder cancels a specific order by its transaction ID
+func CancelOrder(txId string) error {
+	urlBase := "https://api.kraken.com"
+	urlPath := "/0/private/CancelOrder"
+
+	// Create nonce
+	nonce := time.Now().UnixNano() / int64(time.Millisecond)
+
+	// Create payload
+	payload := fmt.Sprintf(`{
+		"nonce": "%d",
+		"txid": "%s"
+	}`, nonce, txId)
+
+	// Get signature for the request
+	signature, err := GetKrakenSignature(urlPath, payload, os.Getenv("KRAKEN_PRIVATE_KEY"))
+	if err != nil {
+		return fmt.Errorf("error generating signature: %v", err)
+	}
+
+	// Make request
+	body, err := MakePrivateRequest(urlBase+urlPath, "POST", payload, os.Getenv("KRAKEN_API_KEY"), signature)
+	if err != nil {
+		return fmt.Errorf("error making request: %v", err)
+	}
+
+	// Parse response
+	var response struct {
+		Error  []string `json:"error"`
+		Result struct {
+			Count int `json:"count"`
+		} `json:"result"`
+	}
+
+	if err := json.Unmarshal(body, &response); err != nil {
+		return fmt.Errorf("error parsing response: %v", err)
+	}
+
+	if len(response.Error) > 0 {
+		return fmt.Errorf("API error: %v", response.Error)
+	}
+
+	if response.Result.Count == 0 {
+		return fmt.Errorf("no orders were canceled")
+	}
+
+	return nil
+}
+
+// CancelAllOrders cancels all open orders for a given coin
+func CancelAllOrders(coin string) error {
+	// Get all open orders for the coin
+	orders, err := GetOpenOrders(coin)
+	if err != nil {
+		return fmt.Errorf("error getting open orders: %v", err)
+	}
+
+	if len(orders) == 0 {
+		return nil
+	}
+
+	// Print orders to be canceled
+	fmt.Printf("\n[LOOP] Canceling %d orders for %s:\n", len(orders), coin)
+	for txId, order := range orders {
+		fmt.Printf("[LOOP] Canceling order %s: Type=%s, Price=%s, Volume=%s\n",
+			txId, order.Descr.Type, order.Descr.Price, order.Vol)
+	}
+
+	// Cancel each order
+	for txId := range orders {
+		if err := CancelOrder(txId); err != nil {
+			return fmt.Errorf("error canceling order %s: %v", txId, err)
+		}
+	}
+
+	fmt.Printf("[LOOP] Successfully initiated cancellation of %d orders for %s\n", len(orders), coin)
+	return nil
 }
