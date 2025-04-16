@@ -225,6 +225,7 @@ func monitorPrice(ctx context.Context, baseCoin string, limitPrice float64, repo
 				}
 
 				if balance.Available > 0 {
+					// sellPrice := currentPrice*10 // untradeable (for testing)
 					sellPrice := currentPrice
 					_, err := kraken.PlaceLimitOrder(baseCoin, sellPrice, balance.Available, false, false)
 					if err != nil {
