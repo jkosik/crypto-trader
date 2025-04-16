@@ -9,6 +9,29 @@ import (
 	"time"
 )
 
+// Loop trading bot that executes multiple trades in sequence using the trader bot.
+// This program runs the trader bot multiple times with the same parameters and logs the results.
+//
+// Usage:
+//   go run cmd/loop/main.go -coin BTC -volume 0.1 -iterations 10
+//
+// Flags:
+//   -coin string      Base coin to trade (e.g. BTC, SOL)
+//   -volume float     Base coin volume to trade
+//   -iterations int   Number of trades to execute (default: 50)
+//
+// Example:
+//   # Execute N iterations of trades
+//   go run cmd/loop/main.go -coin SUNDOG -volume 300 -iterations 2
+//
+//   # Execute 50 trades (default iteration count)
+//   go run cmd/loop/main.go -coin SUNDOG -volume 300
+//
+// Note: This program requires the same environment variables as the trader bot:
+//   KRAKEN_API_KEY
+//   KRAKEN_PRIVATE_KEY
+//   SLACK_WEBHOOK    (optional) Webhook URL for sending trade notifications to Slack
+
 func main() {
 	baseCoin := flag.String("coin", "", "Base coin to trade (e.g. BTC, SOL)")
 	volume := flag.Float64("volume", 0.0, "Base coin volume to trade")

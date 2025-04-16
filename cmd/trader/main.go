@@ -2,7 +2,6 @@ package main
 
 import (
 	"crypto-trader/internal/kraken"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"os"
@@ -10,29 +9,32 @@ import (
 	"time"
 )
 
-// BalanceData represents the balance information for a coin
-type BalanceData struct {
-	Balance   string `json:"balance"`
-	HoldTrade string `json:"hold_trade"`
-}
-
-func getCoinBalance(body []byte, coin string) (BalanceData, error) {
-	var response struct {
-		Error  []string               `json:"error"`
-		Result map[string]BalanceData `json:"result"`
-	}
-
-	if err := json.Unmarshal(body, &response); err != nil {
-		return BalanceData{}, fmt.Errorf("error parsing response: %v", err)
-	}
-
-	balanceData, exists := response.Result[coin]
-	if !exists {
-		return BalanceData{}, fmt.Errorf("balance for %s not found in response", coin)
-	}
-
-	return balanceData, nil
-}
+// Kraken crypto trading bot that executes spread trades on specified cryptocurrency pairs.
+// The bot places simultaneous buy and sell orders to profit from the spread between bid and ask prices.
+//
+// Usage:
+//   go run cmd/trader/main.go -coin BTC -volume 0.1 -order
+//
+// Flags:
+//   -coin string      Base coin to trade (e.g. BTC, SOL)
+//   -order           Place actual orders (default: false)
+//   -untradeable     Place orders at untradeable prices (orders won't be executed)
+//   -volume float    Base coin volume to trade
+//
+// Example:
+//   # Place a real trade
+//   go run cmd/trader/main.go -coin SUNDOG -volume 300 -order
+//
+//   # Simulate a trade without actually placing orders
+//   go run cmd/trader/main.go -coin SUNDOG -volume 300
+//
+//   # Place untradeable orders in extreme prices (for testing)
+//   go run cmd/trader/main.go -coin SUNDOG -volume 300 -order -untradeable
+//
+// Environment variables required:
+//   KRAKEN_API_KEY
+//   KRAKEN_PRIVATE_KEY
+//   SLACK_WEBHOOK    (optional) Webhook URL for sending trade notifications to Slack
 
 func main() {
 	// Define command line flags
@@ -116,57 +118,31 @@ func main() {
 
 	// Check if we have sufficient balance and place the order
 	// Check balance for the base coin
-	balanceBase, err := getCoinBalance(balanceBody, baseCoinBalanceCode)
+	baseBalance, err := kraken.GetBalance(balanceBody, baseCoinBalanceCode, "")
 	if err != nil {
-		fmt.Printf("Error getting %s balance: %v", baseCoinBalanceCode, err)
+		fmt.Printf("Error getting %s balance: %v\n", baseCoinBalanceCode, err)
 		os.Exit(1)
 	}
-	fmt.Printf("\nAvailable %s: %s\n", baseCoinBalanceCode, balanceBase.Balance)
-	balanceBaseFloat, err := strconv.ParseFloat(balanceBase.Balance, 64)
-	if err != nil {
-		fmt.Println("Error converting string to float64:", err)
-		os.Exit(1)
-	}
-	if balanceBaseFloat < *volume {
-		fmt.Printf("\nInsufficient %s balance (have: %s, need: %.2f)\n", *baseCoin, balanceBase.Balance, *volume)
+	fmt.Printf("\nAvailable %s: %.8f\n", baseCoinBalanceCode, baseBalance.Available)
+
+	if baseBalance.Available < *volume {
+		fmt.Printf("\nInsufficient %s balance (have: %.8f, need: %.8f)\n",
+			*baseCoin, baseBalance.Available, *volume)
 		os.Exit(1)
 	}
 
-	// Check balance for USD
-	balanceUSDF, err := getCoinBalance(balanceBody, "USD.F")
+	// Check USD balance (handles both USD.F and ZUSD)
+	usdBalance, err := kraken.GetBalance(balanceBody, "USD.F", "ZUSD")
 	if err != nil {
-		fmt.Println("Error getting USD.F balance:", err)
+		fmt.Printf("Error getting USD balance: %v\n", err)
 		os.Exit(1)
 	}
+	fmt.Printf("Available USD: %.2f\n", usdBalance.Available)
 
-	balanceZUSD, err := getCoinBalance(balanceBody, "ZUSD")
-	if err != nil {
-		fmt.Println("Error getting ZUSD balance:", err)
-		os.Exit(1)
-	}
-
-	// Calculate true available USD (USD.F balance - ZUSD hold_trade)
-	usdBalanceFloat, err := strconv.ParseFloat(balanceUSDF.Balance, 64)
-	if err != nil {
-		fmt.Println("Error converting USD.F balance:", err)
-		os.Exit(1)
-	}
-
-	usdHoldTradeFloat, err := strconv.ParseFloat(balanceZUSD.HoldTrade, 64)
-	if err != nil {
-		fmt.Println("Error converting ZUSD hold_trade:", err)
-		os.Exit(1)
-	}
-
-	availableUSD := usdBalanceFloat - usdHoldTradeFloat
 	requiredUSD := *volume * spreadInfo.BidPrice
-
-	// fmt.Printf("USD.F Balance: %s\n", balanceUSDF.Balance)
-	// fmt.Printf("ZUSD Hold Trade: %s\n", balanceZUSD.HoldTrade)
-	fmt.Printf("Available USD: %.2f\n", availableUSD)
-
-	if availableUSD < requiredUSD {
-		fmt.Printf("\nInsufficient USD balance (have: %.2f, need: %.2f)\n", availableUSD, requiredUSD)
+	if usdBalance.Available < requiredUSD {
+		fmt.Printf("\nInsufficient USD balance (have: %.2f, need: %.2f)\n",
+			usdBalance.Available, requiredUSD)
 		os.Exit(1)
 	}
 
@@ -193,17 +169,17 @@ func main() {
 			fmt.Printf("24h Volume: %.2f USD\n", volume24h)
 
 			// Do not proceed for too high spread
-			if spreadPercent > 4.0 {
-				fmt.Println("❌ Spread is too high (> 3%). Sleeping for a while...")
-				time.Sleep(10 * time.Second)
-				continue
-			}
-			// Do not proceed for too low volume
-			if volume24h < 10000 {
-				fmt.Println("❌ 24h volume is too low (< 500 000 USD). Sleeping for a while...")
-				time.Sleep(10 * time.Second)
-				continue
-			}
+			// if spreadPercent > 3.0 {
+			// 	fmt.Println("❌ Spread is too high (> 3%). Sleeping for a while...")
+			// 	time.Sleep(10 * time.Second)
+			// 	continue
+			// }
+			// // Do not proceed for too low volume
+			// if volume24h < 500000 {
+			// 	fmt.Println("❌ 24h volume is too low (< 500 000 USD). Sleeping for a while...")
+			// 	time.Sleep(10 * time.Second)
+			// 	continue
+			// }
 			fmt.Println("✅ Spread and volume are within the boundaries. Placing orders.")
 			break
 		}
