@@ -17,7 +17,7 @@ import (
 // This program runs the trader bot multiple times with the same parameters and logs the results.
 //
 // Usage:
-//   go run cmd/loop/main.go -coin BTC -volume 0.1 -iterations 20
+//   go run cmd/loop/main.go -coin BTC -volume 0.1 -limitprice 0.05 -iterations 20
 //
 // Flags:
 //   -coin string      Base coin to trade (e.g. BTC, SOL)
@@ -27,15 +27,28 @@ import (
 //
 // Example:
 //   # Execute N iterations of trades
-//   go run cmd/loop/main.go -coin SUNDOG -volume 300 -iterations 2
+//   go run cmd/loop/main.go -coin SUNDOG -volume 300 -limitprice 0.05 -iterations 2
 //
-//   # Execute 50 trades (default iteration count)
-//   go run cmd/loop/main.go -coin SUNDOG -volume 300
+//   # Execute 10 trades (default iteration count)
+//   go run cmd/loop/main.go -coin SUNDOG -volume 300 -limitprice 0.05
 //
 // Note: This program requires the same environment variables as the trader bot:
 //   KRAKEN_API_KEY
 //   KRAKEN_PRIVATE_KEY
 //   SLACK_WEBHOOK    (optional) Webhook URL for sending trade notifications to Slack
+//
+// The bot automatically handles conversion between human-readable coin codes and Kraken's asset codes.
+// For example:
+//   - BTC → XBT.F
+//   - ETH → ETH
+//   - SOL → SOL.F
+//   - SUNDOG → SUNDOG
+//
+// When the price exceeds the limit price:
+//   1. All open orders for the base coin are canceled
+//   2. The current balance is retrieved
+//   3. A limit sell order is placed at the current price
+//   4. The loop is stopped and the program exits
 
 func main() {
 	baseCoin := flag.String("coin", "", "Base coin to trade (e.g. BTC, SOL)")
