@@ -1,4 +1,4 @@
-package main
+package kraken
 
 import (
 	"encoding/json"
@@ -39,17 +39,17 @@ type SpreadInfo struct {
 	LowPrice  float64
 }
 
-// GetTickerInfo returns the current ticker information for the specified trading pair
+// GetTickerInfo retrieves the current ticker information for a given coin
 func GetTickerInfo(coin string) (*SpreadInfo, error) {
 	// Convert coin to Kraken pair format (e.g., "SUNDOG" -> "SUNDOG/USD")
 	pair := coin + "/USD"
-
 	// Get ticker data from public API
 	url := fmt.Sprintf("https://api.kraken.com/0/public/Ticker?pair=%s", pair)
 
-	body, err := makePublicRequest(url, "GET")
+	// Make request
+	body, err := MakePublicRequest(url, "GET")
 	if err != nil {
-		return nil, fmt.Errorf("error getting ticker data: %v", err)
+		return nil, fmt.Errorf("error making request: %v", err)
 	}
 
 	var response TickerResponse

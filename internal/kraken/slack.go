@@ -1,4 +1,4 @@
-package main
+package kraken
 
 import (
 	"bytes"

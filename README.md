@@ -30,26 +30,27 @@ export KRAKEN_PRIVATE_KEY=abcd
 
 Compile the binary (alternatively run by `go run .`):
 ```
-cd /src/
+# from root
 go mod tidy
-go build .
+go build -o bin/trader ./cmd/trader
+go build -o bin/loop ./cmd/loop
 ```
 
 Run as:
 ```
-❯ ./crypto-trader -h
+❯ ./trader -h
 Usage of ./crypto-trader:
   -coin string
         Base coin to trade (e.g. BTC, SOL)
   -order
-        Place the orders (default: false). Otherwise dry-run without order placement.
+        Place actual orders (default: false)
   -untradeable
-        Place orders at inflated untradeable prices. Dry-run with order placement.
+        Place orders at untradeable prices (orders won't be executed - close them manually)
   -volume float
-        Volume of cryptocoin to trade (default: 100.0)
+        Base coin volume to trade
 
 
-./crypto-trader -coin TRUMP -order -volume 100.0
+./trader -coin SUNDOG -volume 100.0 -order
 ```
 
 ## Slack notifications
@@ -57,7 +58,7 @@ Optionally `export SLACK_WEBHOOK=xyz` to receive Slack notifications for succeed
 
 ## Caveats
 The bot CLI parameters recognise human-understandable base coin code (standard code, e.g. BTC). Some API endpoints however expect asset code. We need to do this transformation.
-Asset codes can be found when checking the account balance - run the bot without `-order` and see the balance output json and find your asset code. Afterwards add the pair into the `krakenAssetCode` function.
+Asset codes can be found when checking the account balance - run the bot without `-order` and see the balance output json and find your asset code. Afterwards add the pair into the `kraken.KrakenAssetCode` function.
 ```
 // Balance and Ticker API ndpoints expect different asset codes. Conversion needed.
 func krakenAssetCode(standardCode string) (string, error) {
