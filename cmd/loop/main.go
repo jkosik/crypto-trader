@@ -132,8 +132,7 @@ func monitorPrice(ctx context.Context, baseCoin string, limitPrice float64, repo
 			fmt.Printf("[LOOP] Current price of %s: %.8f (Limit: %.8f)\n", baseCoin, currentPrice, limitPrice)
 
 			// Check if price exceeds limit
-			// if currentPrice > limitPrice*1.1 {
-			if currentPrice > limitPrice*1 {
+			if currentPrice > limitPrice {
 				fmt.Printf("[LOOP] Price exceeded limit! Current: %.8f, Limit: %.8f\n", currentPrice, limitPrice)
 
 				// Set the cancellation flag
@@ -226,11 +225,8 @@ func monitorPrice(ctx context.Context, baseCoin string, limitPrice float64, repo
 				}
 
 				if balance.Available > 0 {
-					// Place sell order at 9% below current price
-					// sellPrice := currentPrice * 0.9
-					sellPrice := currentPrice * 10
-					// _, err := kraken.PlaceLimitOrder(baseCoin, sellPrice, balance.Available, false, false)
-					_, err := kraken.PlaceLimitOrder(baseCoin, sellPrice, 100, false, false)
+					sellPrice := currentPrice
+					_, err := kraken.PlaceLimitOrder(baseCoin, sellPrice, balance.Available, false, false)
 					if err != nil {
 						fmt.Printf("[LOOP] Error placing sell order: %v\n", err)
 					} else {
