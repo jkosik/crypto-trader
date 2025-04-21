@@ -35,6 +35,7 @@ type OrderStatus struct {
 		Order string `json:"order"`
 		Type  string `json:"type"`
 		Price string `json:"price"`
+		Pair  string `json:"pair"`
 	} `json:"descr"`
 	Vol     string `json:"vol"`
 	VolExec string `json:"vol_exec"`
@@ -367,5 +368,135 @@ func CancelAllOrders(coin string) error {
 	}
 
 	fmt.Printf("[LOOP] Successfully initiated cancellation of %d orders for %s\n", len(orders), coin)
+	return nil
+}
+
+// PlaceMarketOrder places a market order on Kraken. Originally planned to be used when one leg is executed. Preferring to use EditOrder instead.
+func PlaceMarketOrder(coin string, volume float64, isBuy bool) (string, error) {
+	urlBase := "https://api.kraken.com"
+	urlPath := "/0/private/AddOrder"
+
+	// Create nonce
+	nonce := time.Now().UnixNano() / int64(time.Millisecond)
+
+	// Determine order type
+	orderType := "sell"
+	if isBuy {
+		orderType = "buy"
+	}
+
+	// Create payload
+	payload := fmt.Sprintf(`{
+		"nonce": "%d",
+		"ordertype": "market",
+		"type": "%s",
+		"pair": "%s/USD",
+		"volume": "%.5f"
+	}`, nonce, orderType, coin, volume)
+
+	// Get signature for the request
+	signature, err := GetKrakenSignature(urlPath, payload, os.Getenv("KRAKEN_PRIVATE_KEY"))
+	if err != nil {
+		return "", fmt.Errorf("error generating signature: %v", err)
+	}
+
+	// Make request
+	body, err := MakePrivateRequest(urlBase+urlPath, "POST", payload, os.Getenv("KRAKEN_API_KEY"), signature)
+	if err != nil {
+		return "", fmt.Errorf("error making request: %v", err)
+	}
+
+	// Parse response
+	var response OrderResponse
+	if err := json.Unmarshal(body, &response); err != nil {
+		return "", fmt.Errorf("error parsing response: %v", err)
+	}
+
+	if len(response.Error) > 0 {
+		return "", fmt.Errorf("API error: %v", response.Error)
+	}
+
+	if len(response.Result.TransactionIds) == 0 {
+		return "", fmt.Errorf("no transaction ID returned")
+	}
+
+	// Print order details
+	fmt.Printf("\nPlaced market %s order:\n", orderType)
+	fmt.Printf("Volume: %.5f\n", volume)
+	fmt.Printf("Order description: %s\n", response.Result.Description.Order)
+
+	return response.Result.TransactionIds[0], nil
+}
+
+// EditOrder modifies an existing order on Kraken
+func EditOrder(txId string, price float64, volume float64) error {
+	// First get the order details to determine the pair
+	order, err := CheckOrderStatus(txId)
+	if err != nil {
+		return fmt.Errorf("error getting order details: %v", err)
+	}
+
+	// Use the pair directly from the order details
+	pair := order.Descr.Pair
+
+	urlBase := "https://api.kraken.com"
+	urlPath := "/0/private/EditOrder"
+
+	// Create nonce
+	nonce := time.Now().UnixNano() / int64(time.Millisecond)
+
+	// Format values as strings
+	nonceStr := strconv.FormatInt(nonce, 10)
+	priceStr := strconv.FormatFloat(price, 'f', -1, 64)
+	volumeStr := strconv.FormatFloat(volume, 'f', -1, 64)
+
+	// Create payload matching the exact format from docs
+	payload := fmt.Sprintf(`{
+		"nonce": "%s",
+		"pair": "%s",
+		"txid": "%s",
+		"volume": "%s",
+		"price": "%s"
+	}`, nonceStr, pair, txId, volumeStr, priceStr)
+
+	// Debug: Print the payload
+	fmt.Printf("\n[DEBUG] EditOrder payload:\n%s\n", payload)
+	fmt.Printf("[DEBUG] Current order type: %s\n", order.Descr.Type)
+
+	// Get signature for the request
+	signature, err := GetKrakenSignature(urlPath, payload, os.Getenv("KRAKEN_PRIVATE_KEY"))
+	if err != nil {
+		return fmt.Errorf("error generating signature: %v", err)
+	}
+
+	// Make request
+	body, err := MakePrivateRequest(urlBase+urlPath, "POST", payload, os.Getenv("KRAKEN_API_KEY"), signature)
+	if err != nil {
+		return fmt.Errorf("error making request: %v", err)
+	}
+
+	// Debug: Print the raw response
+	fmt.Printf("\n[DEBUG] EditOrder raw response:\n%s\n", string(body))
+
+	// Parse response
+	var response struct {
+		Error  []string `json:"error"`
+		Result struct {
+			Status string `json:"status"`
+		} `json:"result"`
+	}
+
+	if err := json.Unmarshal(body, &response); err != nil {
+		return fmt.Errorf("error parsing response: %v", err)
+	}
+
+	if len(response.Error) > 0 {
+		return fmt.Errorf("API error: %v", response.Error)
+	}
+
+	if response.Result.Status != "ok" {
+		return fmt.Errorf("order edit failed: %s", response.Result.Status)
+	}
+
 	return nil
 }

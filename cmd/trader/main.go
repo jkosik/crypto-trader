@@ -151,7 +151,7 @@ func main() {
 		// Place order only if spread is within the boundaries
 		for {
 			// Calculate spread percentage
-			fmt.Println("Getting fresh spread boundary to assess max. spread and min. volume...")
+			fmt.Println("\nGetting fresh spread boundary to assess max. spread and min. volume...")
 			spreadInfo, err := kraken.GetTickerInfo(*baseCoin)
 			if err != nil {
 				fmt.Println("Error getting spread boundary:", err)
@@ -169,18 +169,18 @@ func main() {
 			}
 			fmt.Printf("24h Volume: %.2f USD\n", volume24h)
 
-			// Do not proceed for too high spread
-			// if spreadPercent > 3.0 {
-			// 	fmt.Println("❌ Spread is too high (> 3%). Sleeping for a while...")
-			// 	time.Sleep(10 * time.Second)
-			// 	continue
-			// }
-			// // Do not proceed for too low volume
+			// Skip and re-try if spread and volume are not within the boundaries
+			if spreadPercent < 1.0 {
+				fmt.Println("❌ Spread is not within the boundaries. Sleeping for a while...")
+				time.Sleep(10 * time.Second)
+				continue
+			}
 			// if volume24h < 500000 {
-			// 	fmt.Println("❌ 24h volume is too low (< 500 000 USD). Sleeping for a while...")
+			// 	fmt.Println("❌ 24h volume is not within the boundaries. Sleeping for a while...")
 			// 	time.Sleep(10 * time.Second)
 			// 	continue
 			// }
+
 			fmt.Println("✅ Spread and volume are within the boundaries. Placing orders.")
 			break
 		}
@@ -198,16 +198,14 @@ func main() {
 		fmt.Printf("\nBuy Order TXID: %s", buyTxId)
 		fmt.Printf("\nSell Order TXID: %s\n", sellTxId)
 
-		// Wait till the orders are placed
-		time.Sleep(10 * time.Second)
-
 		// Check status of both orders until both are closed
 		for {
+			time.Sleep(10 * time.Second)
+
 			fmt.Printf("\n🟢 BUY %s status check\n", *baseCoin)
 			buyOrder, err := kraken.CheckOrderStatus(buyTxId)
 			if err != nil {
 				fmt.Printf("Error checking buy order status: %v\n", err)
-				time.Sleep(20 * time.Second)
 				continue
 			}
 
@@ -215,8 +213,47 @@ func main() {
 			sellOrder, err := kraken.CheckOrderStatus(sellTxId)
 			if err != nil {
 				fmt.Printf("Error checking sell order status: %v\n", err)
-				time.Sleep(20 * time.Second)
 				continue
+			}
+
+			// If buy order is closed and sell order is still open, convert sell order to limit
+			if buyOrder.Status == "closed" && sellOrder.Status == "open" {
+				fmt.Println("\n🔄 Updating sell order closer to executed buy price...")
+
+				// Calculate new limit price with 0.5% profit
+				buyPrice, err := strconv.ParseFloat(buyOrder.Descr.Price, 64)
+				if err != nil {
+					fmt.Printf("Error parsing buy price: %v\n", err)
+					continue
+				}
+				newSellPrice := buyPrice * 1.005 // 0.5% profit
+
+				// Edit the existing sell order with new price
+				if err := kraken.EditOrder(sellTxId, newSellPrice, *volume); err != nil {
+					fmt.Printf("Error editing sell order: %v\n", err)
+					continue
+				}
+				fmt.Printf("✅ Sell order edited successfully at %.8f (0.5%% profit)\n", newSellPrice)
+			}
+
+			// If sell order is closed and buy order is still open, convert buy order to limit
+			if sellOrder.Status == "closed" && buyOrder.Status == "open" {
+				fmt.Println("\n🔄 Updating buy order closer to executed sell price...")
+
+				// Calculate new limit price with 0.5% profit
+				sellPrice, err := strconv.ParseFloat(sellOrder.Descr.Price, 64)
+				if err != nil {
+					fmt.Printf("Error parsing sell price: %v\n", err)
+					continue
+				}
+				newBuyPrice := sellPrice * 0.995 // 0.5% profit
+
+				// Edit the existing buy order with new price
+				if err := kraken.EditOrder(buyTxId, newBuyPrice, *volume); err != nil {
+					fmt.Printf("Error editing buy order: %v\n", err)
+					continue
+				}
+				fmt.Printf("✅ Buy order edited successfully at %.8f (0.5%% profit)\n", newBuyPrice)
 			}
 
 			// If both orders are closed, print success message and exit
@@ -245,25 +282,37 @@ func main() {
 				sellFee, _ := strconv.ParseFloat(sellOrder.Fee, 64)
 				totalFees := buyFee + sellFee
 
-				fmt.Printf("Actual Profit: %.2f USD (Gain:%.2f%%)\n", estimatedProfit, estimatedPercentGain)
+				// Get actual executed prices
+				buyPrice, _ := strconv.ParseFloat(buyOrder.Descr.Price, 64)
+				sellPrice, _ := strconv.ParseFloat(sellOrder.Descr.Price, 64)
+				realProfit := (sellPrice - buyPrice) * *volume
+				realProfitPercent := (sellPrice - buyPrice) / buyPrice * 100
+
+				fmt.Printf("Actual Profit: %.2f USD (Gain:%.2f%%)\n", realProfit, realProfitPercent)
 				fmt.Printf("Total Fees: %.2f USD (Buy: %.2f, Sell: %.2f)\n", totalFees, buyFee, sellFee)
 				slackErr := kraken.SendSlackMessage(fmt.Sprintf(
 					"Trade %s in the volume %.5f executed\n"+
-						"Profit: $%.2f\n"+
-						"Gain: %.2f%%\n"+
+						"Expected Profit: $%.2f (%.2f%%)\n"+
+						"Real Profit: $%.2f (%.2f%%)\n"+
 						"Spread now: %.8f (%.4f%%)\n"+
 						"24h Volume: %.2f\n"+
-						"Fees: $%.2f (Buy: $%.2f, Sell: $%.2f)",
+						"Fees: $%.2f (Buy: $%.2f, Sell: $%.2f)\n"+
+						"Buy price: %.8f\n"+
+						"Sell price: %.8f",
 					*baseCoin,
 					*volume,
 					estimatedProfit,
 					estimatedPercentGain,
+					realProfit,
+					realProfitPercent,
 					spread,
 					spreadPercent,
 					volume24h,
 					totalFees,
 					buyFee,
 					sellFee,
+					buyPrice,
+					sellPrice,
 				))
 				if slackErr != nil {
 					fmt.Printf("Error sending Slack message: %v\n", slackErr)
@@ -277,9 +326,6 @@ func main() {
 				fmt.Printf("Unrealised Profit: %.2f USD (Gain: %.2f%%)\n", estimatedProfit, estimatedPercentGain)
 				os.Exit(0)
 			}
-
-			// Check status every 20 seconds
-			time.Sleep(20 * time.Second)
 		}
 	} else {
 		fmt.Println("\nOrder (-order) flag not set. Skipping order placement.")
