@@ -3,7 +3,6 @@ package kraken
 import (
 	"encoding/json"
 	"fmt"
-	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -68,9 +67,13 @@ func PlaceLimitOrder(coin string, price float64, volume float64, isBuy bool, unt
 	// In untradeable mode, use extreme prices to prevent order filling. Estimated profit still shows the spread size.
 	if untradeable {
 		if isBuy {
-			price = math.Floor(price*0.1*1000) / 1000 // 90% below market for buy orders (1000 => truncate to 3 floatng pint numbers)
+			fmt.Printf("\nOriginal buy price: %.8f", price)
+			price = price * 0.1 // 90% below market for buy orders
+			fmt.Printf("\nSetting untradeable buy price: %.8f\n", price)
 		} else {
-			price = math.Floor(price*10.0*1000) / 1000 // 900% above market for sell orders
+			fmt.Printf("\nOriginal sell price: %.8f", price)
+			price = price * 10.0 // 900% above market for sell orders
+			fmt.Printf("\nSetting untradeable sell price: %.8f\n", price)
 		}
 	}
 
@@ -80,9 +83,12 @@ func PlaceLimitOrder(coin string, price float64, volume float64, isBuy bool, unt
 		"ordertype": "limit",
 		"type": "%s",
 		"pair": "%s/USD",
-		"price": "%.5f",
+		"price": %.8f,
 		"volume": "%.5f"
 	}`, nonce, orderType, coin, price, volume)
+
+	// Debug: Print the payload
+	// fmt.Printf("[DEBUG] Payload: %s\n", payload)
 
 	// Get signature for the request
 	signature, err := GetKrakenSignature(urlPath, payload, os.Getenv("KRAKEN_PRIVATE_KEY"))
@@ -98,7 +104,6 @@ func PlaceLimitOrder(coin string, price float64, volume float64, isBuy bool, unt
 
 	// Parse response
 	var response OrderResponse
-
 	if err := json.Unmarshal(body, &response); err != nil {
 		return "", fmt.Errorf("error parsing response: %v", err)
 	}
@@ -113,7 +118,7 @@ func PlaceLimitOrder(coin string, price float64, volume float64, isBuy bool, unt
 
 	// Print order details
 	fmt.Printf("\nPlaced %s order:\n", orderType)
-	fmt.Printf("Price: %.5f\n", price)
+	fmt.Printf("Price: %.8f\n", price)
 	fmt.Printf("Volume: %.5f\n", volume)
 	fmt.Printf("Order description: %s\n", response.Result.Description.Order)
 	if untradeable {
