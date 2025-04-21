@@ -98,7 +98,6 @@ func PlaceLimitOrder(coin string, price float64, volume float64, isBuy bool, unt
 
 	// Parse response
 	var response OrderResponse
-
 	if err := json.Unmarshal(body, &response); err != nil {
 		return "", fmt.Errorf("error parsing response: %v", err)
 	}
@@ -363,4 +362,61 @@ func CancelAllOrders(coin string) error {
 
 	fmt.Printf("[LOOP] Successfully initiated cancellation of %d orders for %s\n", len(orders), coin)
 	return nil
+}
+
+// PlaceMarketOrder places a market order on Kraken
+func PlaceMarketOrder(coin string, volume float64, isBuy bool) (string, error) {
+	urlBase := "https://api.kraken.com"
+	urlPath := "/0/private/AddOrder"
+
+	// Create nonce
+	nonce := time.Now().UnixNano() / int64(time.Millisecond)
+
+	// Determine order type
+	orderType := "sell"
+	if isBuy {
+		orderType = "buy"
+	}
+
+	// Create payload
+	payload := fmt.Sprintf(`{
+		"nonce": "%d",
+		"ordertype": "market",
+		"type": "%s",
+		"pair": "%s/USD",
+		"volume": "%.5f"
+	}`, nonce, orderType, coin, volume)
+
+	// Get signature for the request
+	signature, err := GetKrakenSignature(urlPath, payload, os.Getenv("KRAKEN_PRIVATE_KEY"))
+	if err != nil {
+		return "", fmt.Errorf("error generating signature: %v", err)
+	}
+
+	// Make request
+	body, err := MakePrivateRequest(urlBase+urlPath, "POST", payload, os.Getenv("KRAKEN_API_KEY"), signature)
+	if err != nil {
+		return "", fmt.Errorf("error making request: %v", err)
+	}
+
+	// Parse response
+	var response OrderResponse
+	if err := json.Unmarshal(body, &response); err != nil {
+		return "", fmt.Errorf("error parsing response: %v", err)
+	}
+
+	if len(response.Error) > 0 {
+		return "", fmt.Errorf("API error: %v", response.Error)
+	}
+
+	if len(response.Result.TransactionIds) == 0 {
+		return "", fmt.Errorf("no transaction ID returned")
+	}
+
+	// Print order details
+	fmt.Printf("\nPlaced market %s order:\n", orderType)
+	fmt.Printf("Volume: %.5f\n", volume)
+	fmt.Printf("Order description: %s\n", response.Result.Description.Order)
+
+	return response.Result.TransactionIds[0], nil
 }

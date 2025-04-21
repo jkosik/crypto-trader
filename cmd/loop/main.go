@@ -15,6 +15,7 @@ import (
 
 // Loop trading bot that executes multiple trades in sequence using the trader bot.
 // This program runs the trader bot multiple times with the same parameters and logs the results.
+// It also monitors the price of the base coin and cancels all open orders if the price exceeds the limit price - low chance of executing the second leg.
 //
 // Usage:
 //   go run cmd/loop/main.go -coin BTC -volume 0.1 -limitprice 0.05 -iterations 20
