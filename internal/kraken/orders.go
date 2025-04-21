@@ -445,9 +445,9 @@ func EditOrder(txId string, price float64, volume float64) error {
 	// Create nonce
 	nonce := time.Now().UnixNano() / int64(time.Millisecond)
 
-	// Format values as strings
+	// Format values as strings with price limited to 5 decimal places
 	nonceStr := strconv.FormatInt(nonce, 10)
-	priceStr := strconv.FormatFloat(price, 'f', -1, 64)
+	priceStr := strconv.FormatFloat(price, 'f', 5, 64)
 	volumeStr := strconv.FormatFloat(volume, 'f', -1, 64)
 
 	// Create payload matching the exact format from docs
