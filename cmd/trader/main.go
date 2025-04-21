@@ -7,8 +7,6 @@ import (
 	"os"
 	"strconv"
 	"time"
-
-	"github.com/jkosik/crypto-trader/internal/kraken"
 )
 
 // Kraken crypto trading bot that executes spread trades on specified cryptocurrency pairs.
@@ -171,7 +169,7 @@ func main() {
 			}
 			fmt.Printf("24h Volume: %.2f USD\n", volume24h)
 
-			// Re-try if spread and volume are within the boundaries
+			// Skip and re-try if spread and volume are not within the boundaries
 			if spreadPercent < 1.0 {
 				fmt.Println("❌ Spread is not within the boundaries. Sleeping for a while...")
 				time.Sleep(10 * time.Second)
@@ -200,16 +198,14 @@ func main() {
 		fmt.Printf("\nBuy Order TXID: %s", buyTxId)
 		fmt.Printf("\nSell Order TXID: %s\n", sellTxId)
 
-		// Wait till the orders are placed
-		time.Sleep(2 * time.Second)
-
 		// Check status of both orders until both are closed
 		for {
+			time.Sleep(10 * time.Second)
+
 			fmt.Printf("\n🟢 BUY %s status check\n", *baseCoin)
 			buyOrder, err := kraken.CheckOrderStatus(buyTxId)
 			if err != nil {
 				fmt.Printf("Error checking buy order status: %v\n", err)
-				time.Sleep(20 * time.Second)
 				continue
 			}
 
@@ -217,86 +213,47 @@ func main() {
 			sellOrder, err := kraken.CheckOrderStatus(sellTxId)
 			if err != nil {
 				fmt.Printf("Error checking sell order status: %v\n", err)
-				time.Sleep(20 * time.Second)
 				continue
 			}
 
-			// If buy order is closed and sell order is still open, convert sell order to market
+			// If buy order is closed and sell order is still open, convert sell order to limit
 			if buyOrder.Status == "closed" && sellOrder.Status == "open" {
-				fmt.Println("\n🔄 Converting sell order to market order...")
+				fmt.Println("\n🔄 Updating sell order closer to executed buy price...")
 
-				// Get the remaining volume to sell
-				remainingVolume, err := strconv.ParseFloat(sellOrder.Vol, 64)
+				// Calculate new limit price with 0.5% profit
+				buyPrice, err := strconv.ParseFloat(buyOrder.Descr.Price, 64)
 				if err != nil {
-					fmt.Printf("Error parsing remaining volume: %v\n", err)
+					fmt.Printf("Error parsing buy price: %v\n", err)
 					continue
 				}
+				newSellPrice := buyPrice * 1.005 // 0.5% profit
 
-				// Cancel the existing limit sell order
-				if err := kraken.CancelOrder(sellTxId); err != nil {
-					fmt.Printf("Error canceling limit sell order: %v\n", err)
+				// Edit the existing sell order with new price
+				if err := kraken.EditOrder(sellTxId, newSellPrice, *volume); err != nil {
+					fmt.Printf("Error editing sell order: %v\n", err)
 					continue
 				}
-
-				// Verify the order was actually canceled
-				time.Sleep(5 * time.Second) // Give some time for the cancellation to process
-				canceledOrder, err := kraken.CheckOrderStatus(sellTxId)
-				if err != nil {
-					fmt.Printf("Error verifying order cancellation: %v\n", err)
-					continue
-				}
-
-				if canceledOrder.Status != "canceled" {
-					fmt.Printf("Order was not properly canceled (status: %s). Retrying...\n", canceledOrder.Status)
-					continue
-				}
-
-				// Place market sell order with the remaining volume
-				sellTxId, err = kraken.PlaceMarketOrder(*baseCoin, remainingVolume, false)
-				if err != nil {
-					fmt.Printf("Error placing market sell order: %v\n", err)
-					os.Exit(1)
-				}
-				fmt.Println("✅ Market sell order placed successfully")
+				fmt.Printf("✅ Sell order edited successfully at %.8f (0.5%% profit)\n", newSellPrice)
 			}
 
-			// If sell order is closed and buy order is still open, convert buy order to market
+			// If sell order is closed and buy order is still open, convert buy order to limit
 			if sellOrder.Status == "closed" && buyOrder.Status == "open" {
-				fmt.Println("\n🔄 Converting buy order to market order...")
+				fmt.Println("\n🔄 Updating buy order closer to executed sell price...")
 
-				// Get the remaining volume to buy
-				remainingVolume, err := strconv.ParseFloat(buyOrder.Vol, 64)
+				// Calculate new limit price with 0.5% profit
+				sellPrice, err := strconv.ParseFloat(sellOrder.Descr.Price, 64)
 				if err != nil {
-					fmt.Printf("Error parsing remaining volume: %v\n", err)
+					fmt.Printf("Error parsing sell price: %v\n", err)
 					continue
 				}
+				newBuyPrice := sellPrice * 0.995 // 0.5% profit
 
-				// Cancel the existing limit buy order
-				if err := kraken.CancelOrder(buyTxId); err != nil {
-					fmt.Printf("Error canceling limit buy order: %v\n", err)
+				// Edit the existing buy order with new price
+				if err := kraken.EditOrder(buyTxId, newBuyPrice, *volume); err != nil {
+					fmt.Printf("Error editing buy order: %v\n", err)
 					continue
 				}
-
-				// Verify the order was actually canceled
-				time.Sleep(5 * time.Second) // Give some time for the cancellation to process
-				canceledOrder, err := kraken.CheckOrderStatus(buyTxId)
-				if err != nil {
-					fmt.Printf("Error verifying order cancellation: %v\n", err)
-					continue
-				}
-
-				if canceledOrder.Status != "canceled" {
-					fmt.Printf("Order was not properly canceled (status: %s). Retrying...\n", canceledOrder.Status)
-					continue
-				}
-
-				// Place market buy order with the remaining volume
-				buyTxId, err = kraken.PlaceMarketOrder(*baseCoin, remainingVolume, true)
-				if err != nil {
-					fmt.Printf("Error placing market buy order: %v\n", err)
-					os.Exit(1)
-				}
-				fmt.Println("✅ Market buy order placed successfully")
+				fmt.Printf("✅ Buy order edited successfully at %.8f (0.5%% profit)\n", newBuyPrice)
 			}
 
 			// If both orders are closed, print success message and exit
@@ -325,25 +282,37 @@ func main() {
 				sellFee, _ := strconv.ParseFloat(sellOrder.Fee, 64)
 				totalFees := buyFee + sellFee
 
-				fmt.Printf("Actual Profit: %.2f USD (Gain:%.2f%%)\n", estimatedProfit, estimatedPercentGain)
+				// Get actual executed prices
+				buyPrice, _ := strconv.ParseFloat(buyOrder.Descr.Price, 64)
+				sellPrice, _ := strconv.ParseFloat(sellOrder.Descr.Price, 64)
+				realProfit := (sellPrice - buyPrice) * *volume
+				realProfitPercent := (sellPrice - buyPrice) / buyPrice * 100
+
+				fmt.Printf("Actual Profit: %.2f USD (Gain:%.2f%%)\n", realProfit, realProfitPercent)
 				fmt.Printf("Total Fees: %.2f USD (Buy: %.2f, Sell: %.2f)\n", totalFees, buyFee, sellFee)
 				slackErr := kraken.SendSlackMessage(fmt.Sprintf(
 					"Trade %s in the volume %.5f executed\n"+
-						"Profit: $%.2f\n"+
-						"Gain: %.2f%%\n"+
+						"Expected Profit: $%.2f (%.2f%%)\n"+
+						"Real Profit: $%.2f (%.2f%%)\n"+
 						"Spread now: %.8f (%.4f%%)\n"+
 						"24h Volume: %.2f\n"+
-						"Fees: $%.2f (Buy: $%.2f, Sell: $%.2f)",
+						"Fees: $%.2f (Buy: $%.2f, Sell: $%.2f)\n"+
+						"Buy price: %.8f\n"+
+						"Sell price: %.8f",
 					*baseCoin,
 					*volume,
 					estimatedProfit,
 					estimatedPercentGain,
+					realProfit,
+					realProfitPercent,
 					spread,
 					spreadPercent,
 					volume24h,
 					totalFees,
 					buyFee,
 					sellFee,
+					buyPrice,
+					sellPrice,
 				))
 				if slackErr != nil {
 					fmt.Printf("Error sending Slack message: %v\n", slackErr)
@@ -357,9 +326,6 @@ func main() {
 				fmt.Printf("Unrealised Profit: %.2f USD (Gain: %.2f%%)\n", estimatedProfit, estimatedPercentGain)
 				os.Exit(0)
 			}
-
-			// Check status every 20 seconds
-			time.Sleep(20 * time.Second)
 		}
 	} else {
 		fmt.Println("\nOrder (-order) flag not set. Skipping order placement.")
