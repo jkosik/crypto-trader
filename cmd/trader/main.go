@@ -1,12 +1,13 @@
 package main
 
 import (
-	"crypto-trader/internal/kraken"
 	"flag"
 	"fmt"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/jkosik/crypto-trader/internal/kraken"
 )
 
 // Kraken crypto trading bot that executes spread trades on specified cryptocurrency pairs.
@@ -151,7 +152,7 @@ func main() {
 		// Place order only if spread is within the boundaries
 		for {
 			// Calculate spread percentage
-			fmt.Println("Getting fresh spread boundary to assess max. spread and min. volume...")
+			fmt.Println("\nGetting fresh spread boundary to assess max. spread and min. volume...")
 			spreadInfo, err := kraken.GetTickerInfo(*baseCoin)
 			if err != nil {
 				fmt.Println("Error getting spread boundary:", err)
@@ -169,18 +170,18 @@ func main() {
 			}
 			fmt.Printf("24h Volume: %.2f USD\n", volume24h)
 
-			// Do not proceed for too high spread
-			// if spreadPercent > 3.0 {
-			// 	fmt.Println("❌ Spread is too high (> 3%). Sleeping for a while...")
-			// 	time.Sleep(10 * time.Second)
-			// 	continue
-			// }
-			// // Do not proceed for too low volume
+			// Re-try if spread and volume are within the boundaries
+			if spreadPercent < 1.0 {
+				fmt.Println("❌ Spread is not within the boundaries. Sleeping for a while...")
+				time.Sleep(10 * time.Second)
+				continue
+			}
 			// if volume24h < 500000 {
-			// 	fmt.Println("❌ 24h volume is too low (< 500 000 USD). Sleeping for a while...")
+			// 	fmt.Println("❌ 24h volume is not within the boundaries. Sleeping for a while...")
 			// 	time.Sleep(10 * time.Second)
 			// 	continue
 			// }
+
 			fmt.Println("✅ Spread and volume are within the boundaries. Placing orders.")
 			break
 		}
@@ -199,7 +200,7 @@ func main() {
 		fmt.Printf("\nSell Order TXID: %s\n", sellTxId)
 
 		// Wait till the orders are placed
-		time.Sleep(10 * time.Second)
+		time.Sleep(2 * time.Second)
 
 		// Check status of both orders until both are closed
 		for {
@@ -217,6 +218,84 @@ func main() {
 				fmt.Printf("Error checking sell order status: %v\n", err)
 				time.Sleep(20 * time.Second)
 				continue
+			}
+
+			// If buy order is closed and sell order is still open, convert sell order to market
+			if buyOrder.Status == "closed" && sellOrder.Status == "open" {
+				fmt.Println("\n🔄 Converting sell order to market order...")
+
+				// Get the remaining volume to sell
+				remainingVolume, err := strconv.ParseFloat(sellOrder.Vol, 64)
+				if err != nil {
+					fmt.Printf("Error parsing remaining volume: %v\n", err)
+					continue
+				}
+
+				// Cancel the existing limit sell order
+				if err := kraken.CancelOrder(sellTxId); err != nil {
+					fmt.Printf("Error canceling limit sell order: %v\n", err)
+					continue
+				}
+
+				// Verify the order was actually canceled
+				time.Sleep(5 * time.Second) // Give some time for the cancellation to process
+				canceledOrder, err := kraken.CheckOrderStatus(sellTxId)
+				if err != nil {
+					fmt.Printf("Error verifying order cancellation: %v\n", err)
+					continue
+				}
+
+				if canceledOrder.Status != "canceled" {
+					fmt.Printf("Order was not properly canceled (status: %s). Retrying...\n", canceledOrder.Status)
+					continue
+				}
+
+				// Place market sell order with the remaining volume
+				sellTxId, err = kraken.PlaceMarketOrder(*baseCoin, remainingVolume, false)
+				if err != nil {
+					fmt.Printf("Error placing market sell order: %v\n", err)
+					os.Exit(1)
+				}
+				fmt.Println("✅ Market sell order placed successfully")
+			}
+
+			// If sell order is closed and buy order is still open, convert buy order to market
+			if sellOrder.Status == "closed" && buyOrder.Status == "open" {
+				fmt.Println("\n🔄 Converting buy order to market order...")
+
+				// Get the remaining volume to buy
+				remainingVolume, err := strconv.ParseFloat(buyOrder.Vol, 64)
+				if err != nil {
+					fmt.Printf("Error parsing remaining volume: %v\n", err)
+					continue
+				}
+
+				// Cancel the existing limit buy order
+				if err := kraken.CancelOrder(buyTxId); err != nil {
+					fmt.Printf("Error canceling limit buy order: %v\n", err)
+					continue
+				}
+
+				// Verify the order was actually canceled
+				time.Sleep(5 * time.Second) // Give some time for the cancellation to process
+				canceledOrder, err := kraken.CheckOrderStatus(buyTxId)
+				if err != nil {
+					fmt.Printf("Error verifying order cancellation: %v\n", err)
+					continue
+				}
+
+				if canceledOrder.Status != "canceled" {
+					fmt.Printf("Order was not properly canceled (status: %s). Retrying...\n", canceledOrder.Status)
+					continue
+				}
+
+				// Place market buy order with the remaining volume
+				buyTxId, err = kraken.PlaceMarketOrder(*baseCoin, remainingVolume, true)
+				if err != nil {
+					fmt.Printf("Error placing market buy order: %v\n", err)
+					os.Exit(1)
+				}
+				fmt.Println("✅ Market buy order placed successfully")
 			}
 
 			// If both orders are closed, print success message and exit
