@@ -2,9 +2,9 @@ package main
 
 import (
 	"context"
-	"crypto-trader/internal/kraken"
 	"flag"
 	"fmt"
+	"github.com/jkosik/crypto-trader/internal/kraken"
 	"os"
 	"os/exec"
 	"path/filepath"

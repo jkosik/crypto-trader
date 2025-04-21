@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/jkosik/crypto-trader/internal/kraken"
 	"os"
 	"strconv"
 	"time"
