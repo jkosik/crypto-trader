@@ -482,8 +482,9 @@ func EditOrder(txId string, price float64, volume float64) (string, error) {
 	var response struct {
 		Error  []string `json:"error"`
 		Result struct {
-			Status  string `json:"status"`
-			NewTxId string `json:"newtxid"`
+			Status       string `json:"status"`
+			TxId         string `json:"txid"`         // New transaction ID
+			OriginalTxId string `json:"originaltxid"` // Original transaction ID
 		} `json:"result"`
 	}
 
@@ -499,9 +500,9 @@ func EditOrder(txId string, price float64, volume float64) (string, error) {
 		return "", fmt.Errorf("order edit failed: %s", response.Result.Status)
 	}
 
-	if response.Result.NewTxId == "" {
+	if response.Result.TxId == "" {
 		return "", fmt.Errorf("no new transaction ID returned")
 	}
 
-	return response.Result.NewTxId, nil
+	return response.Result.TxId, nil
 }
