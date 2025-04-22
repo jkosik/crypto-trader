@@ -3,10 +3,11 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/jkosik/crypto-trader/internal/kraken"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/jkosik/crypto-trader/internal/kraken"
 )
 
 // Kraken crypto trading bot that executes spread trades on specified cryptocurrency pairs.
@@ -229,11 +230,13 @@ func main() {
 				newSellPrice := buyPrice * 1.005 // 0.5% profit
 
 				// Edit the existing sell order with new price
-				if err := kraken.EditOrder(sellTxId, newSellPrice, *volume); err != nil {
+				newSellTxId, err := kraken.EditOrder(sellTxId, newSellPrice, *volume)
+				if err != nil {
 					fmt.Printf("Error editing sell order: %v\n", err)
 					continue
 				}
 				fmt.Printf("✅ Sell order edited successfully at %.8f (0.5%% profit)\n", newSellPrice)
+				sellTxId = newSellTxId // Update the transaction ID
 			}
 
 			// If sell order is closed and buy order is still open, convert buy order to limit
@@ -249,11 +252,13 @@ func main() {
 				newBuyPrice := sellPrice * 0.995 // 0.5% profit
 
 				// Edit the existing buy order with new price
-				if err := kraken.EditOrder(buyTxId, newBuyPrice, *volume); err != nil {
+				newBuyTxId, err := kraken.EditOrder(buyTxId, newBuyPrice, *volume)
+				if err != nil {
 					fmt.Printf("Error editing buy order: %v\n", err)
 					continue
 				}
 				fmt.Printf("✅ Buy order edited successfully at %.8f (0.5%% profit)\n", newBuyPrice)
+				buyTxId = newBuyTxId // Update the transaction ID
 			}
 
 			// If both orders are closed, print success message and exit
