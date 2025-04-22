@@ -200,6 +200,8 @@ func main() {
 		fmt.Printf("\nSell Order TXID: %s\n", sellTxId)
 
 		// Check status of both orders until both are closed
+		sellOrderEdited := false
+		buyOrderEdited := false
 		for {
 			time.Sleep(10 * time.Second)
 
@@ -218,7 +220,7 @@ func main() {
 			}
 
 			// If buy order is closed and sell order is still open, convert sell order to limit
-			if buyOrder.Status == "closed" && sellOrder.Status == "open" {
+			if buyOrder.Status == "closed" && sellOrder.Status == "open" && !sellOrderEdited {
 				fmt.Println("\n🔄 Updating sell order closer to executed buy price...")
 
 				// Calculate new limit price with 0.5% profit
@@ -236,11 +238,12 @@ func main() {
 					continue
 				}
 				fmt.Printf("✅ Sell order edited successfully at %.8f (0.5%% profit)\n", newSellPrice)
-				sellTxId = newSellTxId // Update the transaction ID
+				sellTxId = newSellTxId
+				sellOrderEdited = true
 			}
 
 			// If sell order is closed and buy order is still open, convert buy order to limit
-			if sellOrder.Status == "closed" && buyOrder.Status == "open" {
+			if sellOrder.Status == "closed" && buyOrder.Status == "open" && !buyOrderEdited {
 				fmt.Println("\n🔄 Updating buy order closer to executed sell price...")
 
 				// Calculate new limit price with 0.5% profit
@@ -258,7 +261,8 @@ func main() {
 					continue
 				}
 				fmt.Printf("✅ Buy order edited successfully at %.8f (0.5%% profit)\n", newBuyPrice)
-				buyTxId = newBuyTxId // Update the transaction ID
+				buyTxId = newBuyTxId
+				buyOrderEdited = true
 			}
 
 			// If both orders are closed, print success message and exit
