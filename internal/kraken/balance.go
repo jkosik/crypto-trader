@@ -44,6 +44,13 @@ func GetBalance(balanceBody []byte, mainCurrency string, holdCurrency string) (*
 		return nil, fmt.Errorf("error converting %s balance: %v", mainCurrency, err)
 	}
 
+	// Get main currency's hold_trade
+	mainHoldTradeFloat, err := strconv.ParseFloat(mainBalance.HoldTrade, 64)
+	if err != nil {
+		return nil, fmt.Errorf("error converting %s hold_trade: %v", mainCurrency, err)
+	}
+
+	// Get hold currency's hold_trade if specified
 	var holdTradeFloat float64
 	if holdCurrency != "" {
 		holdTradeFloat, err = strconv.ParseFloat(holdBalance.HoldTrade, 64)
@@ -52,11 +59,14 @@ func GetBalance(balanceBody []byte, mainCurrency string, holdCurrency string) (*
 		}
 	}
 
+	// Total hold is the sum of main currency's hold_trade and hold currency's hold_trade
+	totalHold := mainHoldTradeFloat + holdTradeFloat
+
 	return &Balance{
 		Currency:  mainCurrency,
 		Balance:   balanceFloat,
-		HoldTrade: holdTradeFloat,
-		Available: balanceFloat - holdTradeFloat,
+		HoldTrade: totalHold,
+		Available: balanceFloat - totalHold,
 	}, nil
 }
 

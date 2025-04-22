@@ -8,6 +8,7 @@ A trading bot for cryptocurrency markets that executes trades based on price spr
 - Support for multiple cryptocurrencies
 - Price monitoring and limit order placement
 - Automatic order cancellation when price limits are exceeded
+- Optional order editing after one leg is executed
 - Detailed logging and reporting
 
 ## What is spread trading
@@ -53,12 +54,12 @@ There are also some risks associated (e.g. sudden market volatility, trading fee
 
 ### Trader Bot
 ```bash
-go run cmd/trader/main.go -coin <COIN> -volume <AMOUNT> [-order] [-untradeable]
+go run cmd/trader/main.go -coin <COIN> -volume <AMOUNT> [-order] [-untradeable] [-editorder]
 ```
 
 ### Loop Bot
 ```bash
-go run cmd/loop/main.go -coin <COIN> -volume <AMOUNT> -limitprice <PRICE> [-iterations <NUMBER>]
+go run cmd/loop/main.go -coin <COIN> -volume <AMOUNT> [-limitprice <PRICE>] [-iterations <NUMBER>]
 ```
 
 ### Flags
@@ -73,12 +74,26 @@ go run cmd/loop/main.go -coin <COIN> -volume <AMOUNT> -limitprice <PRICE> [-iter
 
 ### Execute a single trade
 ```bash
+# Place a real trade
 go run cmd/trader/main.go -coin SUNDOG -volume 100.0 -order
+
+# Simulate a trade without actually placing orders (to see balance and asset codes)
+go run cmd/trader/main.go -coin SUNDOG -volume 100.0
+
+# Place untradeable orders in extreme prices (for testing)
+go run cmd/trader/main.go -coin SUNDOG -volume 100.0 -order -untradeable
+
+# Place orders and edit them after one leg is executed
+go run cmd/trader/main.go -coin SUNDOG -volume 100.0 -order -editorder
 ```
 
-### Execute multiple trades with price monitoring
+### Execute multiple trades
 ```bash
+# Execute N iterations of trades with price monitoring
 go run cmd/loop/main.go -coin SUNDOG -volume 300 -limitprice 0.05 -iterations 2
+
+# Execute N iterations of trades without price monitoring
+go run cmd/loop/main.go -coin SUNDOG -volume 300 -iterations 2
 ```
 
 ## Asset Codes

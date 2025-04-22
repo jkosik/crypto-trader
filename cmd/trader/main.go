@@ -11,7 +11,7 @@ import (
 )
 
 const (
-	// Profit percentage for order adjustments
+	// Profit percentage for order adjustments (relevant only if -editorder flag is set)
 	// When buy order is executed, sell order will be placed at buyPrice * (1 + profitPercent)
 	// When sell order is executed, buy order will be placed at sellPrice * (1 - profitPercent)
 	profitPercent = 0.005 // 0.5% profit
@@ -136,6 +136,8 @@ func main() {
 
 	// Check if we have sufficient balance and place the order
 	// Check balance for the base coin
+	// We pass empty string as holdCurrency because crypto coins (like BTC, SOL, etc.) don't have
+	// alternative currency codes for holds like USD does (USD.F vs ZUSD)
 	baseBalance, err := kraken.GetBalance(balanceBody, baseCoinBalanceCode, "")
 	if err != nil {
 		fmt.Printf("Error getting %s balance: %v\n", baseCoinBalanceCode, err)
