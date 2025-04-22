@@ -429,11 +429,11 @@ func PlaceMarketOrder(coin string, volume float64, isBuy bool) (string, error) {
 }
 
 // EditOrder modifies an existing order on Kraken
-func EditOrder(txId string, price float64, volume float64) error {
+func EditOrder(txId string, price float64, volume float64) (string, error) {
 	// First get the order details to determine the pair
 	order, err := CheckOrderStatus(txId)
 	if err != nil {
-		return fmt.Errorf("error getting order details: %v", err)
+		return "", fmt.Errorf("error getting order details: %v", err)
 	}
 
 	// Use the pair directly from the order details
@@ -466,13 +466,13 @@ func EditOrder(txId string, price float64, volume float64) error {
 	// Get signature for the request
 	signature, err := GetKrakenSignature(urlPath, payload, os.Getenv("KRAKEN_PRIVATE_KEY"))
 	if err != nil {
-		return fmt.Errorf("error generating signature: %v", err)
+		return "", fmt.Errorf("error generating signature: %v", err)
 	}
 
 	// Make request
 	body, err := MakePrivateRequest(urlBase+urlPath, "POST", payload, os.Getenv("KRAKEN_API_KEY"), signature)
 	if err != nil {
-		return fmt.Errorf("error making request: %v", err)
+		return "", fmt.Errorf("error making request: %v", err)
 	}
 
 	// Debug: Print the raw response
@@ -482,21 +482,26 @@ func EditOrder(txId string, price float64, volume float64) error {
 	var response struct {
 		Error  []string `json:"error"`
 		Result struct {
-			Status string `json:"status"`
+			Status  string `json:"status"`
+			NewTxId string `json:"newtxid"`
 		} `json:"result"`
 	}
 
 	if err := json.Unmarshal(body, &response); err != nil {
-		return fmt.Errorf("error parsing response: %v", err)
+		return "", fmt.Errorf("error parsing response: %v", err)
 	}
 
 	if len(response.Error) > 0 {
-		return fmt.Errorf("API error: %v", response.Error)
+		return "", fmt.Errorf("API error: %v", response.Error)
 	}
 
 	if response.Result.Status != "ok" {
-		return fmt.Errorf("order edit failed: %s", response.Result.Status)
+		return "", fmt.Errorf("order edit failed: %s", response.Result.Status)
 	}
 
-	return nil
+	if response.Result.NewTxId == "" {
+		return "", fmt.Errorf("no new transaction ID returned")
+	}
+
+	return response.Result.NewTxId, nil
 }

@@ -96,13 +96,13 @@ func GetTickerInfo(coin string) (*SpreadInfo, error) {
 	spread := askPrice - bidPrice
 
 	// Print the ticker information
-	spreadPercent := (spread / bidPrice) * 100
-	fmt.Printf("\n%s/USD Spread & High/Low Information (Ticker API):\n", coin)
-	fmt.Printf("Bid Price: %.8f\n", bidPrice)
-	fmt.Printf("Ask Price: %.8f\n", askPrice)
-	fmt.Printf("Spread: %.8f (%.4f%%)\n", spread, spreadPercent)
-	fmt.Printf("24h High: %.8f\n", highPrice)
-	fmt.Printf("24h Low: %.8f\n", lowPrice)
+	// spreadPercent := (spread / bidPrice) * 100
+	// fmt.Printf("\n%s/USD Spread & High/Low Information (Ticker API):\n", coin)
+	// fmt.Printf("Bid Price: %.8f\n", bidPrice)
+	// fmt.Printf("Ask Price: %.8f\n", askPrice)
+	// fmt.Printf("Spread: %.8f (%.4f%%)\n", spread, spreadPercent)
+	// fmt.Printf("24h High: %.8f\n", highPrice)
+	// fmt.Printf("24h Low: %.8f\n", lowPrice)
 
 	return &SpreadInfo{
 		BidPrice:  bidPrice,
