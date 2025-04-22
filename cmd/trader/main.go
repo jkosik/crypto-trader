@@ -10,6 +10,17 @@ import (
 	"github.com/jkosik/crypto-trader/internal/kraken"
 )
 
+const (
+	// Profit percentage for order adjustments
+	// When buy order is executed, sell order will be placed at buyPrice * (1 + profitPercent)
+	// When sell order is executed, buy order will be placed at sellPrice * (1 - profitPercent)
+	profitPercent = 0.005 // 0.5% profit
+
+	// Trading conditions
+	minSpreadPercent = 1.0    // Minimum spread percentage required to place orders
+	minVolume24h     = 300000 // Minimum 24h volume in USD required to place orders
+)
+
 // Kraken crypto trading bot that executes spread trades on specified cryptocurrency pairs.
 // The bot places simultaneous buy and sell orders to profit from the spread between bid and ask prices.
 //
@@ -21,6 +32,7 @@ import (
 //   -order           Place actual orders (default: false)
 //   -untradeable     Place orders at untradeable prices (orders won't be executed)
 //   -volume float    Base coin volume to trade
+//   -editorder       Edit orders after one leg is executed (default: false)
 //
 // Example:
 //   # Place a real trade
@@ -31,6 +43,9 @@ import (
 //
 //   # Place untradeable orders in extreme prices (for testing)
 //   go run cmd/trader/main.go -coin SUNDOG -volume 300 -order -untradeable
+//
+//   # Place orders and edit them after one leg is executed
+//   go run cmd/trader/main.go -coin SUNDOG -volume 300 -order -editorder
 //
 // Environment variables required:
 //   KRAKEN_API_KEY
@@ -43,6 +58,7 @@ func main() {
 	orderFlag := flag.Bool("order", false, "Place actual orders (default: false)")
 	untradeable := flag.Bool("untradeable", false, "Place orders at untradeable prices (orders won't be executed - close them manually)")
 	volume := flag.Float64("volume", 0.0, "Base coin volume to trade")
+	editOrder := flag.Bool("editorder", false, "Edit orders after one leg is executed (default: false)")
 
 	// Parse command line flags
 	flag.Parse()
@@ -50,12 +66,13 @@ func main() {
 	// Check if required flags are set
 	if *baseCoin == "" || *volume == 0.0 {
 		fmt.Println("Error: -coin flag is required")
-		fmt.Println("Usage: ./k-bot -coin <COIN> [-order] [-volume <AMOUNT>] [-untradeable]")
+		fmt.Println("Usage: go run cmd/trader/main.go -coin <COIN> -volume <AMOUNT> [-order] [-untradeable] [-editorder]")
 		fmt.Println("\nFlags:")
 		fmt.Println("  -coin <COIN>    Base coin to trade (e.g. BTC, SOL)")
+
 		fmt.Println("  -order         Place actual orders (default: false)")
 		fmt.Println("  -untradeable   Place orders at untradeable prices (orders won't be executed - close them manually)")
-		fmt.Println("  -volume <AMOUNT> Base coin volume to trade.")
+		fmt.Println("  -editorder     Edit orders after one leg is executed (default: false)")
 		os.Exit(1)
 	}
 
@@ -171,16 +188,16 @@ func main() {
 			fmt.Printf("24h Volume: %.2f USD\n", volume24h)
 
 			// Skip and re-try if spread and volume are not within the boundaries
-			if spreadPercent < 1.0 {
+			if spreadPercent < minSpreadPercent {
 				fmt.Println("❌ Spread is not within the boundaries. Sleeping for a while...")
 				time.Sleep(10 * time.Second)
 				continue
 			}
-			// if volume24h < 500000 {
-			// 	fmt.Println("❌ 24h volume is not within the boundaries. Sleeping for a while...")
-			// 	time.Sleep(10 * time.Second)
-			// 	continue
-			// }
+			if volume24h < minVolume24h {
+				fmt.Println("❌ 24h volume is not within the boundaries. Sleeping for a while...")
+				time.Sleep(10 * time.Second)
+				continue
+			}
 
 			fmt.Println("✅ Spread and volume are within the boundaries. Placing orders.")
 			break
@@ -220,16 +237,16 @@ func main() {
 			}
 
 			// If buy order is closed and sell order is still open, convert sell order to limit
-			if buyOrder.Status == "closed" && sellOrder.Status == "open" && !sellOrderEdited {
+			if buyOrder.Status == "closed" && sellOrder.Status == "open" && !sellOrderEdited && *editOrder {
 				fmt.Println("\n🔄 Updating sell order closer to executed buy price...")
 
-				// Calculate new limit price with 0.5% profit
+				// Calculate new limit price with profit
 				buyPrice, err := strconv.ParseFloat(buyOrder.Descr.Price, 64)
 				if err != nil {
 					fmt.Printf("Error parsing buy price: %v\n", err)
 					continue
 				}
-				newSellPrice := buyPrice * 1.005 // 0.5% profit
+				newSellPrice := buyPrice * (1 + profitPercent)
 
 				// Edit the existing sell order with new price
 				newSellTxId, err := kraken.EditOrder(sellTxId, newSellPrice, *volume)
@@ -237,22 +254,22 @@ func main() {
 					fmt.Printf("Error editing sell order: %v\n", err)
 					continue
 				}
-				fmt.Printf("✅ Sell order edited successfully at %.8f (0.5%% profit)\n", newSellPrice)
+				fmt.Printf("✅ Sell order edited successfully at %.8f (%.2f%% profit)\n", newSellPrice, profitPercent*100)
 				sellTxId = newSellTxId
 				sellOrderEdited = true
 			}
 
 			// If sell order is closed and buy order is still open, convert buy order to limit
-			if sellOrder.Status == "closed" && buyOrder.Status == "open" && !buyOrderEdited {
+			if sellOrder.Status == "closed" && buyOrder.Status == "open" && !buyOrderEdited && *editOrder {
 				fmt.Println("\n🔄 Updating buy order closer to executed sell price...")
 
-				// Calculate new limit price with 0.5% profit
+				// Calculate new limit price with profit
 				sellPrice, err := strconv.ParseFloat(sellOrder.Descr.Price, 64)
 				if err != nil {
 					fmt.Printf("Error parsing sell price: %v\n", err)
 					continue
 				}
-				newBuyPrice := sellPrice * 0.995 // 0.5% profit
+				newBuyPrice := sellPrice * (1 - profitPercent)
 
 				// Edit the existing buy order with new price
 				newBuyTxId, err := kraken.EditOrder(buyTxId, newBuyPrice, *volume)
@@ -260,7 +277,7 @@ func main() {
 					fmt.Printf("Error editing buy order: %v\n", err)
 					continue
 				}
-				fmt.Printf("✅ Buy order edited successfully at %.8f (0.5%% profit)\n", newBuyPrice)
+				fmt.Printf("✅ Buy order edited successfully at %.8f (%.2f%% profit)\n", newBuyPrice, profitPercent*100)
 				buyTxId = newBuyTxId
 				buyOrderEdited = true
 			}

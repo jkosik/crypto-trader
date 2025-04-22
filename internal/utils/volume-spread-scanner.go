@@ -12,7 +12,7 @@ import (
 
 // Configuration parameters
 const (
-	MinVolumeUSD  = 100000.0 // Minimum 24h volume in USD
+	MinVolumeUSD  = 500000.0 // Minimum 24h volume in USD
 	MinSpreadPct  = 0.5      // Minimum spread percentage
 	TopPairsCount = 10       // Number of top pairs to show in each category
 )

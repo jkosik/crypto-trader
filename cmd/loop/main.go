@@ -4,13 +4,14 @@ import (
 	"context"
 	"flag"
 	"fmt"
-	"github.com/jkosik/crypto-trader/internal/kraken"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/jkosik/crypto-trader/internal/kraken"
 )
 
 // Loop trading bot that executes multiple trades in sequence using the trader bot.
@@ -55,12 +56,17 @@ func main() {
 	baseCoin := flag.String("coin", "", "Base coin to trade (e.g. BTC, SOL)")
 	volume := flag.Float64("volume", 0.0, "Base coin volume to trade")
 	iterations := flag.Int("iterations", 10, "Number of trades to execute")
-	limitPrice := flag.Float64("limitprice", 0.0, "Maximum price limit for the base coin")
+	limitPrice := flag.Float64("limitprice", 0.0, "Maximum price limit for the base coin (optional)")
 	flag.Parse()
 
-	if *baseCoin == "" || *volume == 0.0 || *limitPrice == 0.0 {
-		fmt.Println("Error: -coin, -volume, and -limitprice flags are required")
-		fmt.Println("Usage: ./loop -coin <COIN> -volume <AMOUNT> -limitprice <PRICE> [-iterations <NUMBER>]")
+	if *baseCoin == "" || *volume == 0.0 {
+		fmt.Println("Error: -coin and -volume flags are required")
+		fmt.Println("Usage: ./loop -coin <COIN> -volume <AMOUNT> [-limitprice <PRICE>] [-iterations <NUMBER>]")
+		fmt.Println("\nFlags:")
+		fmt.Println("  -coin <COIN>    Base coin to trade (e.g. BTC, SOL)")
+		fmt.Println("  -volume <AMOUNT> Base coin volume to trade")
+		fmt.Println("  -limitprice <PRICE> Maximum price limit for the base coin (optional)")
+		fmt.Println("  -iterations <NUMBER> Number of trades to execute (default: 10)")
 		os.Exit(1)
 	}
 
@@ -84,9 +90,11 @@ func main() {
 		wg       sync.WaitGroup
 	)
 
-	// Start price monitoring in a separate goroutine
-	wg.Add(1)
-	go monitorPrice(ctx, *baseCoin, *limitPrice, reportFile, &canceled, &mu, cancel, &wg)
+	// Start price monitoring in a separate goroutine only if limitprice is set
+	if *limitPrice > 0 {
+		wg.Add(1)
+		go monitorPrice(ctx, *baseCoin, *limitPrice, reportFile, &canceled, &mu, cancel, &wg)
+	}
 
 	// Get the absolute path to the trader binary
 	traderPath := filepath.Join("..", "trader", "main.go")
