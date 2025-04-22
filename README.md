@@ -82,25 +82,14 @@ go run cmd/loop/main.go -coin SUNDOG -volume 300 -limitprice 0.05 -iterations 2
 ```
 
 ## Asset Codes
-The bot handles conversion between human-readable coin codes and Kraken's asset codes automatically. For example:
+Some Kraken API endpoints needs conversion from human-readable codes to asset codes. For example:
 - BTC → XBT.F
 - ETH → ETH
 - SOL → SOL.F
 - SUNDOG → SUNDOG
 
-When checking account balance or filtering orders, the bot uses the appropriate asset code format for each API endpoint.
-
-## Caveats
-1. The bot CLI parameters recognize human-understandable base coin codes (standard code, e.g. BTC)
-2. Some API endpoints expect asset codes (e.g. XBT.F for BTC)
-3. The bot automatically handles this conversion using the `KrakenAssetCode` function
-4. New trading pairs need to be added to the `KrakenAssetCode` function's mapping
-
-## Development
-To add support for a new trading pair:
-1. Run the bot without `-order` to see the balance output
-2. Find your asset code in the balance output
-3. Add the pair to the `KrakenAssetCode` function in `internal/kraken/api.go`
+If unsure, dry-run the crypto-trader by omittun `-order` flag and check the balance JSON output.
+Add the pair to the `KrakenAssetCode` function in `internal/kraken/api.go` if needed.
 
 Example:
 ```go

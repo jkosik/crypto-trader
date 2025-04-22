@@ -38,7 +38,7 @@ const (
 //   # Place a real trade
 //   go run cmd/trader/main.go -coin SUNDOG -volume 300 -order
 //
-//   # Simulate a trade without actually placing orders
+//   # Simulate a trade without actually placing orders. E.g. to see the balance and asset codes.
 //   go run cmd/trader/main.go -coin SUNDOG -volume 300
 //
 //   # Place untradeable orders in extreme prices (for testing)
