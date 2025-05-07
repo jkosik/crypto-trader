@@ -11,14 +11,9 @@ import (
 )
 
 const (
-	// Profit percentage for order adjustments (relevant only if -editorder flag is set)
-	// When buy order is executed, sell order will be placed at buyPrice * (1 + profitPercent)
-	// When sell order is executed, buy order will be placed at sellPrice * (1 - profitPercent)
-	profitPercent = 0.005 // 0.5% profit
-
 	// Trading conditions
-	minSpreadPercent = 1.0    // Minimum spread percentage required to place orders
-	minVolume24h     = 300000 // Minimum 24h volume in USD required to place orders
+	minSpreadPercent = 0.7    // Minimum spread percentage required to place orders
+	minVolume24h     = 100000 // Minimum 24h volume in USD required to place orders
 )
 
 // Kraken crypto trading bot that executes spread trades on specified cryptocurrency pairs.
@@ -32,20 +27,32 @@ const (
 //   -order           Place actual orders (default: false)
 //   -untradeable     Place orders at untradeable prices (orders won't be executed)
 //   -volume float    Base coin volume to trade
-//   -editorder       Edit orders after one leg is executed (default: false)
+//   -spreadnarrow    Optional: How much to narrow the spread (0.0 to 1.0, default: 0.0)
+//                    Permitted values:
+//                    - 0.0: No narrowing, use full spread (default)
+//                    - 0.25: Narrow to quarter of the spread
+//                    - 0.5: Narrow to half of the spread
+//                    - 0.75: Narrow to quarter of the spread
+//                    - 1.0: Place orders at center price (minimum spread)
 //
 // Example:
-//   # Place a real trade
+//   # Place a real trade with full spread (no narrowing)
 //   go run cmd/trader/main.go -coin SUNDOG -volume 300 -order
 //
-//   # Simulate a trade without actually placing orders. E.g. to see the balance and asset codes.
+//   # Place a trade with half spread narrowing
+//   go run cmd/trader/main.go -coin SUNDOG -volume 300 -order -spreadnarrow 0.5
+//
+//   # Place a trade with minimal spread narrowing (25%)
+//   go run cmd/trader/main.go -coin SUNDOG -volume 300 -order -spreadnarrow 0.25
+//
+//   # Place a trade with maximum spread narrowing (center price)
+//   go run cmd/trader/main.go -coin SUNDOG -volume 300 -order -spreadnarrow 1.0
+//
+//   # Simulate a trade without actually placing orders
 //   go run cmd/trader/main.go -coin SUNDOG -volume 300
 //
 //   # Place untradeable orders in extreme prices (for testing)
 //   go run cmd/trader/main.go -coin SUNDOG -volume 300 -order -untradeable
-//
-//   # Place orders and edit them after one leg is executed
-//   go run cmd/trader/main.go -coin SUNDOG -volume 300 -order -editorder
 //
 // Environment variables required:
 //   KRAKEN_API_KEY
@@ -58,7 +65,7 @@ func main() {
 	orderFlag := flag.Bool("order", false, "Place actual orders (default: false)")
 	untradeable := flag.Bool("untradeable", false, "Place orders at untradeable prices (orders won't be executed - close them manually)")
 	volume := flag.Float64("volume", 0.0, "Base coin volume to trade")
-	editOrder := flag.Bool("editorder", false, "Edit orders after one leg is executed (default: false)")
+	spreadNarrow := flag.Float64("spreadnarrow", 0.0, "Optional: How much to narrow the spread (0.0 to 1.0, default: 0.0)")
 
 	// Parse command line flags
 	flag.Parse()
@@ -66,13 +73,12 @@ func main() {
 	// Check if required flags are set
 	if *baseCoin == "" || *volume == 0.0 {
 		fmt.Println("Error: -coin flag is required")
-		fmt.Println("Usage: go run cmd/trader/main.go -coin <COIN> -volume <AMOUNT> [-order] [-untradeable] [-editorder]")
+		fmt.Println("Usage: go run cmd/trader/main.go -coin <COIN> -volume <AMOUNT> [-order] [-untradeable] [-spreadnarrow <FACTOR>]")
 		fmt.Println("\nFlags:")
 		fmt.Println("  -coin <COIN>    Base coin to trade (e.g. BTC, SOL)")
-
 		fmt.Println("  -order         Place actual orders (default: false)")
 		fmt.Println("  -untradeable   Place orders at untradeable prices (orders won't be executed - close them manually)")
-		fmt.Println("  -editorder     Edit orders after one leg is executed (default: false)")
+		fmt.Println("  -spreadnarrow  Optional: How much to narrow the spread (0.0 to 1.0, default: 0.0)")
 		os.Exit(1)
 	}
 
@@ -205,22 +211,18 @@ func main() {
 			break
 		}
 
-		buyTxId, sellTxId, estimatedProfit, estimatedPercentGain, err := kraken.PlaceSpreadOrders(*baseCoin, spreadInfo, *volume, *untradeable)
+		buyTxId, sellTxId, estimatedProfit, estimatedPercentGain, err := kraken.PlaceSpreadOrders(*baseCoin, spreadInfo, *volume, *untradeable, *spreadNarrow)
 		if err != nil {
-			fmt.Printf("Error placing orders: %v\n", err)
+			fmt.Printf("Error placing spread orders: %v\n", err)
 			os.Exit(1)
-		} else {
-			fmt.Println("✅ Orders placed successfully.")
 		}
 
 		// Estimated profit ignores -untradeable flag and always shows the spread size.
-		fmt.Printf("\nEstimated Profit: %.2f USD (Gain: %.2f%%)", estimatedProfit, estimatedPercentGain)
+		fmt.Printf("\nEstimated profit: %.8f USD (%.4f%%)\n", estimatedProfit, estimatedPercentGain)
 		fmt.Printf("\nBuy Order TXID: %s", buyTxId)
 		fmt.Printf("\nSell Order TXID: %s\n", sellTxId)
 
 		// Check status of both orders until both are closed
-		sellOrderEdited := false
-		buyOrderEdited := false
 		for {
 			time.Sleep(10 * time.Second)
 
@@ -236,52 +238,6 @@ func main() {
 			if err != nil {
 				fmt.Printf("Error checking sell order status: %v\n", err)
 				continue
-			}
-
-			// If buy order is closed and sell order is still open, convert sell order to limit
-			if buyOrder.Status == "closed" && sellOrder.Status == "open" && !sellOrderEdited && *editOrder {
-				fmt.Println("\n🔄 Updating sell order closer to executed buy price...")
-
-				// Calculate new limit price with profit
-				buyPrice, err := strconv.ParseFloat(buyOrder.Descr.Price, 64)
-				if err != nil {
-					fmt.Printf("Error parsing buy price: %v\n", err)
-					continue
-				}
-				newSellPrice := buyPrice * (1 + profitPercent)
-
-				// Edit the existing sell order with new price
-				newSellTxId, err := kraken.EditOrder(sellTxId, newSellPrice, *volume)
-				if err != nil {
-					fmt.Printf("Error editing sell order: %v\n", err)
-					continue
-				}
-				fmt.Printf("✅ Sell order edited successfully at %.8f (%.2f%% profit)\n", newSellPrice, profitPercent*100)
-				sellTxId = newSellTxId
-				sellOrderEdited = true
-			}
-
-			// If sell order is closed and buy order is still open, convert buy order to limit
-			if sellOrder.Status == "closed" && buyOrder.Status == "open" && !buyOrderEdited && *editOrder {
-				fmt.Println("\n🔄 Updating buy order closer to executed sell price...")
-
-				// Calculate new limit price with profit
-				sellPrice, err := strconv.ParseFloat(sellOrder.Descr.Price, 64)
-				if err != nil {
-					fmt.Printf("Error parsing sell price: %v\n", err)
-					continue
-				}
-				newBuyPrice := sellPrice * (1 - profitPercent)
-
-				// Edit the existing buy order with new price
-				newBuyTxId, err := kraken.EditOrder(buyTxId, newBuyPrice, *volume)
-				if err != nil {
-					fmt.Printf("Error editing buy order: %v\n", err)
-					continue
-				}
-				fmt.Printf("✅ Buy order edited successfully at %.8f (%.2f%% profit)\n", newBuyPrice, profitPercent*100)
-				buyTxId = newBuyTxId
-				buyOrderEdited = true
 			}
 
 			// If both orders are closed, print success message and exit

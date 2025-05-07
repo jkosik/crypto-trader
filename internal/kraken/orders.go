@@ -84,7 +84,7 @@ func PlaceLimitOrder(coin string, price float64, volume float64, isBuy bool, unt
 		"ordertype": "limit",
 		"type": "%s",
 		"pair": "%s/USD",
-		"price": %.8f,
+		"price": %.6f,
 		"volume": "%.5f"
 	}`, nonce, orderType, coin, price, volume)
 
@@ -130,21 +130,40 @@ func PlaceLimitOrder(coin string, price float64, volume float64, isBuy bool, unt
 }
 
 // PlaceSpreadOrders places a spread of buy and sell orders
-func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untradeable bool) (string, string, float64, float64, error) {
-	// Calculate estimated profit. Bid and ask prices are in USD and the differences is per one trading base coin unit.
-	estimatedProfit := (spreadInfo.AskPrice - spreadInfo.BidPrice) * volume
+// spreadNarrowFactor controls how much to narrow the spread (0.0 to 1.0):
+// - 0.0 means no narrowing (use full spread)
+// - 0.5 means half the spread
+// - 0.25 means quarter of the spread
+// - 1.0 means place orders at center price (minimum spread)
+func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untradeable bool, spreadNarrowFactor float64) (string, string, float64, float64, error) {
+	// Ensure spreadNarrowFactor is between 0 and 1
+	if spreadNarrowFactor < 0 {
+		spreadNarrowFactor = 0
+	} else if spreadNarrowFactor > 1 {
+		spreadNarrowFactor = 1
+	}
+
+	// Calculate the center price of the spread
+	centerPrice := (spreadInfo.AskPrice + spreadInfo.BidPrice) / 2
+
+	// Calculate new buy and sell prices based on the narrowing factor
+	newBuyPrice := spreadInfo.BidPrice + (centerPrice-spreadInfo.BidPrice)*spreadNarrowFactor
+	newSellPrice := spreadInfo.AskPrice - (spreadInfo.AskPrice-centerPrice)*spreadNarrowFactor
+
+	// Calculate estimated profit based on the new prices
+	estimatedProfit := (newSellPrice - newBuyPrice) * volume
 
 	// Calculate estimated percent gain based on the buy price
-	estimatedPercentGain := ((spreadInfo.AskPrice - spreadInfo.BidPrice) / spreadInfo.BidPrice) * 100
+	estimatedPercentGain := ((newSellPrice - newBuyPrice) / newBuyPrice) * 100
 
-	// Place buy order at bid price
-	buyTxId, err := PlaceLimitOrder(coin, spreadInfo.BidPrice, volume, true, untradeable)
+	// Place buy order at the new buy price
+	buyTxId, err := PlaceLimitOrder(coin, newBuyPrice, volume, true, untradeable)
 	if err != nil {
 		return "", "", 0, 0, fmt.Errorf("error placing buy order: %v", err)
 	}
 
-	// Place sell order at ask price
-	sellTxId, err := PlaceLimitOrder(coin, spreadInfo.AskPrice, volume, false, untradeable)
+	// Place sell order at the new sell price
+	sellTxId, err := PlaceLimitOrder(coin, newSellPrice, volume, false, untradeable)
 	if err != nil {
 		return "", "", 0, 0, fmt.Errorf("error placing sell order: %v", err)
 	}
