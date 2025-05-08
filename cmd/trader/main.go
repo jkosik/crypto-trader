@@ -252,8 +252,8 @@ func main() {
 				slackErr := kraken.SendSlackMessage(fmt.Sprintf(
 					"✅ Trade %s/USD executed\n"+
 						"Volume: %.5f\n"+
-						"Buy price: %.4f\n"+
-						"Sell price: %.4f\n"+
+						"Buy price: %.5f\n"+
+						"Sell price: %.5f\n"+
 						"Estimated profit: %.2f USD (%.4f%%)\n"+
 						"Buy Order ID: %s\n"+
 						"Sell Order ID: %s\n"+
