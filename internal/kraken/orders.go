@@ -3,6 +3,7 @@ package kraken
 import (
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"strconv"
 	"strings"
@@ -84,7 +85,7 @@ func PlaceLimitOrder(coin string, price float64, volume float64, isBuy bool, unt
 		"ordertype": "limit",
 		"type": "%s",
 		"pair": "%s/USD",
-		"price": %.5f,
+		"price": %.4f,
 		"volume": "%.5f"
 	}`, nonce, orderType, coin, price, volume)
 
@@ -149,6 +150,10 @@ func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untr
 	// Calculate new buy and sell prices based on the narrowing factor
 	newBuyPrice := spreadInfo.BidPrice + (centerPrice-spreadInfo.BidPrice)*spreadNarrowFactor
 	newSellPrice := spreadInfo.AskPrice - (spreadInfo.AskPrice-centerPrice)*spreadNarrowFactor
+
+	// Round prices to 4 decimal places before comparison
+	newBuyPrice = math.Round(newBuyPrice*10000) / 10000
+	newSellPrice = math.Round(newSellPrice*10000) / 10000
 
 	// Check if narrowed prices are too close or equal
 	if newSellPrice <= newBuyPrice {
