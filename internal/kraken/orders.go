@@ -156,6 +156,16 @@ func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untr
 	// Calculate estimated percent gain based on the buy price
 	estimatedPercentGain := ((newSellPrice - newBuyPrice) / newBuyPrice) * 100
 
+	// Print spread information
+	fmt.Printf("\nPlacing spread orders for %s/USD:\n", coin)
+	fmt.Printf("Volume: %.5f\n", volume)
+	fmt.Printf("Original spread: %.6f (%.4f%%)\n", spreadInfo.Spread, (spreadInfo.Spread/spreadInfo.BidPrice)*100)
+	fmt.Printf("Spread narrowing: %.2f%%\n", spreadNarrowFactor*100)
+	fmt.Printf("Center price: %.6f\n", centerPrice)
+	fmt.Printf("Buy price: %.6f\n", newBuyPrice)
+	fmt.Printf("Sell price: %.6f\n", newSellPrice)
+	fmt.Printf("Estimated profit: %.2f USD (%.4f%%)\n", estimatedProfit, estimatedPercentGain)
+
 	// Place buy order at the new buy price
 	buyTxId, err := PlaceLimitOrder(coin, newBuyPrice, volume, true, untradeable)
 	if err != nil {
@@ -166,6 +176,34 @@ func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untr
 	sellTxId, err := PlaceLimitOrder(coin, newSellPrice, volume, false, untradeable)
 	if err != nil {
 		return "", "", 0, 0, fmt.Errorf("error placing sell order: %v", err)
+	}
+
+	fmt.Printf("\nOrders placed successfully:\n")
+	fmt.Printf("Buy Order TXID: %s\n", buyTxId)
+	fmt.Printf("Sell Order TXID: %s\n", sellTxId)
+
+	// Send Slack notification about placed orders
+	slackErr := SendSlackMessage(fmt.Sprintf(
+		"🔄 New spread trade initiated for %s\n"+
+			"Volume: %.5f\n"+
+			"Buy Price: %.6f\n"+
+			"Sell Price: %.6f\n"+
+			"Spread Narrowing: %.2f%%\n"+
+			"Estimated Profit: $%.2f (%.4f%%)\n"+
+			"Buy Order ID: %s\n"+
+			"Sell Order ID: %s",
+		coin,
+		volume,
+		newBuyPrice,
+		newSellPrice,
+		estimatedProfit,
+		estimatedPercentGain,
+		spreadNarrowFactor*100,
+		buyTxId,
+		sellTxId,
+	))
+	if slackErr != nil {
+		fmt.Printf("Warning: Failed to send Slack notification: %v\n", slackErr)
 	}
 
 	return buyTxId, sellTxId, estimatedProfit, estimatedPercentGain, nil

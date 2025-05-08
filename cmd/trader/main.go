@@ -217,11 +217,6 @@ func main() {
 			os.Exit(1)
 		}
 
-		// Estimated profit ignores -untradeable flag and always shows the spread size.
-		fmt.Printf("\nEstimated profit: %.8f USD (%.4f%%)\n", estimatedProfit, estimatedPercentGain)
-		fmt.Printf("\nBuy Order TXID: %s", buyTxId)
-		fmt.Printf("\nSell Order TXID: %s\n", sellTxId)
-
 		// Check status of both orders until both are closed
 		for {
 			time.Sleep(10 * time.Second)
@@ -269,15 +264,11 @@ func main() {
 				// Get actual executed prices
 				buyPrice, _ := strconv.ParseFloat(buyOrder.Descr.Price, 64)
 				sellPrice, _ := strconv.ParseFloat(sellOrder.Descr.Price, 64)
-				realProfit := (sellPrice - buyPrice) * *volume
-				realProfitPercent := (sellPrice - buyPrice) / buyPrice * 100
 
-				fmt.Printf("Actual Profit: %.2f USD (Gain:%.2f%%)\n", realProfit, realProfitPercent)
 				fmt.Printf("Total Fees: %.2f USD (Buy: %.2f, Sell: %.2f)\n", totalFees, buyFee, sellFee)
 				slackErr := kraken.SendSlackMessage(fmt.Sprintf(
 					"Trade %s in the volume %.5f executed\n"+
-						"Expected Profit: $%.2f (%.2f%%)\n"+
-						"Real Profit: $%.2f (%.2f%%)\n"+
+						"Estimated Profit: $%.2f (%.4f%%)\n"+
 						"Spread now: %.8f (%.4f%%)\n"+
 						"24h Volume: %.2f\n"+
 						"Fees: $%.2f (Buy: $%.2f, Sell: $%.2f)\n"+
@@ -287,8 +278,6 @@ func main() {
 					*volume,
 					estimatedProfit,
 					estimatedPercentGain,
-					realProfit,
-					realProfitPercent,
 					spread,
 					spreadPercent,
 					volume24h,
@@ -307,7 +296,7 @@ func main() {
 			if buyOrder.Status == "canceled" && sellOrder.Status == "canceled" {
 				fmt.Println("\n=== TRADE CANCELED! ===")
 				fmt.Println("Both buy and sell orders have been canceled.")
-				fmt.Printf("Unrealised Profit: %.2f USD (Gain: %.2f%%)\n", estimatedProfit, estimatedPercentGain)
+				fmt.Printf("Unrealised Profit: %.2f USD (Gain: %.4f%%)\n", estimatedProfit, estimatedPercentGain)
 				os.Exit(0)
 			}
 		}
