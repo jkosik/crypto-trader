@@ -84,7 +84,7 @@ func PlaceLimitOrder(coin string, price float64, volume float64, isBuy bool, unt
 		"ordertype": "limit",
 		"type": "%s",
 		"pair": "%s/USD",
-		"price": %.5f,
+		"price": %.4f,
 		"volume": "%.5f"
 	}`, nonce, orderType, coin, price, volume)
 
@@ -119,7 +119,7 @@ func PlaceLimitOrder(coin string, price float64, volume float64, isBuy bool, unt
 
 	// Print order details
 	fmt.Printf("\nPlaced %s order:\n", orderType)
-	fmt.Printf("Price: %.5f\n", price)
+	fmt.Printf("Price: %.4f\n", price)
 	fmt.Printf("Volume: %.5f\n", volume)
 	fmt.Printf("Order description: %s\n", response.Result.Description.Order)
 	if untradeable {
@@ -159,13 +159,13 @@ func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untr
 	// Print spread information
 	fmt.Printf("\n🔄 Placing spread orders for %s/USD:\n", coin)
 	fmt.Printf("Volume: %.5f\n", volume)
-	fmt.Printf("Original buy price: %.5f\n", spreadInfo.BidPrice)
-	fmt.Printf("Original sell price: %.5f\n", spreadInfo.AskPrice)
-	fmt.Printf("Original spread: %.5f (%.4f%%)\n", spreadInfo.Spread, (spreadInfo.Spread/spreadInfo.BidPrice)*100)
+	fmt.Printf("Original buy price: %.4f\n", spreadInfo.BidPrice)
+	fmt.Printf("Original sell price: %.4f\n", spreadInfo.AskPrice)
+	fmt.Printf("Original spread: %.4f (%.4f%%)\n", spreadInfo.Spread, (spreadInfo.Spread/spreadInfo.BidPrice)*100)
 	fmt.Printf("Spread narrowing: %.2f%%\n", spreadNarrowFactor*100)
-	fmt.Printf("Center price: %.5f\n", centerPrice)
-	fmt.Printf("Narrowed buy price: %.5f\n", newBuyPrice)
-	fmt.Printf("Narrowed sell price: %.5f\n", newSellPrice)
+	fmt.Printf("Center price: %.4f\n", centerPrice)
+	fmt.Printf("Narrowed buy price: %.4f\n", newBuyPrice)
+	fmt.Printf("Narrowed sell price: %.4f\n", newSellPrice)
 	fmt.Printf("Estimated profit: %.2f USD (%.4f%%)\n", estimatedProfit, estimatedPercentGain)
 
 	// Place buy order at the new buy price
@@ -188,13 +188,13 @@ func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untr
 	slackErr := SendSlackMessage(fmt.Sprintf(
 		"🔄 Placing spread orders for %s/USD\n"+
 			"Volume: %.5f\n"+
-			"Original buy price: %.5f\n"+
-			"Original sell price: %.5f\n"+
-			"Original spread: %.5f (%.4f%%)\n"+
+			"Original buy price: %.4f\n"+
+			"Original sell price: %.4f\n"+
+			"Original spread: %.4f (%.4f%%)\n"+
 			"Spread narrowing: %.2f%%\n"+
-			"Center price: %.5f\n"+
-			"Narrowed buy price: %.5f\n"+
-			"Narrowed sell price: %.5f\n"+
+			"Center price: %.4f\n"+
+			"Narrowed buy price: %.4f\n"+
+			"Narrowed sell price: %.4f\n"+
 			"Estimated profit: %.2f USD (%.4f%%)\n"+
 			"Buy Order ID: %s\n"+
 			"Sell Order ID: %s",
