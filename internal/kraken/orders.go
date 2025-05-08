@@ -84,7 +84,7 @@ func PlaceLimitOrder(coin string, price float64, volume float64, isBuy bool, unt
 		"ordertype": "limit",
 		"type": "%s",
 		"pair": "%s/USD",
-		"price": %.4f,
+		"price": %.5f,
 		"volume": "%.5f"
 	}`, nonce, orderType, coin, price, volume)
 
