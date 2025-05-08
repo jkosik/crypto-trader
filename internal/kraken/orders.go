@@ -157,13 +157,15 @@ func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untr
 	estimatedPercentGain := ((newSellPrice - newBuyPrice) / newBuyPrice) * 100
 
 	// Print spread information
-	fmt.Printf("\nPlacing spread orders for %s/USD:\n", coin)
+	fmt.Printf("\n🔄 Placing spread orders for %s/USD:\n", coin)
 	fmt.Printf("Volume: %.5f\n", volume)
+	fmt.Printf("Original buy price: %.6f\n", spreadInfo.BidPrice)
+	fmt.Printf("Original sell price: %.6f\n", spreadInfo.AskPrice)
 	fmt.Printf("Original spread: %.6f (%.4f%%)\n", spreadInfo.Spread, (spreadInfo.Spread/spreadInfo.BidPrice)*100)
 	fmt.Printf("Spread narrowing: %.2f%%\n", spreadNarrowFactor*100)
 	fmt.Printf("Center price: %.6f\n", centerPrice)
-	fmt.Printf("Buy price: %.6f\n", newBuyPrice)
-	fmt.Printf("Sell price: %.6f\n", newSellPrice)
+	fmt.Printf("Narrowed buy price: %.6f\n", newBuyPrice)
+	fmt.Printf("Narrowed sell price: %.6f\n", newSellPrice)
 	fmt.Printf("Estimated profit: %.2f USD (%.4f%%)\n", estimatedProfit, estimatedPercentGain)
 
 	// Place buy order at the new buy price
@@ -179,26 +181,35 @@ func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untr
 	}
 
 	fmt.Printf("\nOrders placed successfully:\n")
-	fmt.Printf("Buy Order TXID: %s\n", buyTxId)
-	fmt.Printf("Sell Order TXID: %s\n", sellTxId)
+	fmt.Printf("Buy Order ID: %s\n", buyTxId)
+	fmt.Printf("Sell Order ID: %s\n", sellTxId)
 
 	// Send Slack notification about placed orders
 	slackErr := SendSlackMessage(fmt.Sprintf(
-		"🔄 New spread trade initiated for %s\n"+
+		"🔄 Placing spread orders for %s/USD\n"+
 			"Volume: %.5f\n"+
-			"Buy Price: %.6f\n"+
-			"Sell Price: %.6f\n"+
-			"Spread Narrowing: %.2f%%\n"+
-			"Estimated Profit: $%.2f (%.4f%%)\n"+
+			"Original buy price: %.6f\n"+
+			"Original sell price: %.6f\n"+
+			"Original spread: %.6f (%.4f%%)\n"+
+			"Spread narrowing: %.2f%%\n"+
+			"Center price: %.6f\n"+
+			"Narrowed buy price: %.6f\n"+
+			"Narrowed sell price: %.6f\n"+
+			"Estimated profit: %.2f USD (%.4f%%)\n"+
 			"Buy Order ID: %s\n"+
 			"Sell Order ID: %s",
 		coin,
 		volume,
+		spreadInfo.BidPrice,
+		spreadInfo.AskPrice,
+		spreadInfo.Spread,
+		(spreadInfo.Spread/spreadInfo.BidPrice)*100,
+		spreadNarrowFactor*100,
+		centerPrice,
 		newBuyPrice,
 		newSellPrice,
 		estimatedProfit,
 		estimatedPercentGain,
-		spreadNarrowFactor*100,
 		buyTxId,
 		sellTxId,
 	))
