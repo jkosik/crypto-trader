@@ -69,13 +69,13 @@ func PlaceLimitOrder(coin string, price float64, volume float64, isBuy bool, unt
 	// In untradeable mode, use extreme prices to prevent order filling. Estimated profit still shows the spread size.
 	if untradeable {
 		if isBuy {
-			fmt.Printf("\nOriginal buy price: %.8f", price)
+			fmt.Printf("\nOriginal buy price: %.6f", price)
 			price = price * 0.1 // 90% below market for buy orders
-			fmt.Printf("\nSetting untradeable buy price: %.8f\n", price)
+			fmt.Printf("\nSetting untradeable buy price: %.6f\n", price)
 		} else {
-			fmt.Printf("\nOriginal sell price: %.8f", price)
+			fmt.Printf("\nOriginal sell price: %.6f", price)
 			price = price * 10.0 // 900% above market for sell orders
-			fmt.Printf("\nSetting untradeable sell price: %.8f\n", price)
+			fmt.Printf("\nSetting untradeable sell price: %.6f\n", price)
 		}
 	}
 
@@ -85,7 +85,7 @@ func PlaceLimitOrder(coin string, price float64, volume float64, isBuy bool, unt
 		"ordertype": "limit",
 		"type": "%s",
 		"pair": "%s/USD",
-		"price": %.4f,
+		"price": %.6f,
 		"volume": "%.5f"
 	}`, nonce, orderType, coin, price, volume)
 
@@ -120,7 +120,7 @@ func PlaceLimitOrder(coin string, price float64, volume float64, isBuy bool, unt
 
 	// Print order details
 	fmt.Printf("\nPlaced %s order:\n", orderType)
-	fmt.Printf("Price: %.4f\n", price)
+	fmt.Printf("Price: %.6f\n", price)
 	fmt.Printf("Volume: %.5f\n", volume)
 	fmt.Printf("Order description: %s\n", response.Result.Description.Order)
 	if untradeable {
@@ -151,25 +151,48 @@ func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untr
 	newBuyPrice := spreadInfo.BidPrice + (centerPrice-spreadInfo.BidPrice)*spreadNarrowFactor
 	newSellPrice := spreadInfo.AskPrice - (spreadInfo.AskPrice-centerPrice)*spreadNarrowFactor
 
-	// Round prices to 4 decimal places before comparison
-	newBuyPrice = math.Round(newBuyPrice*10000) / 10000
-	newSellPrice = math.Round(newSellPrice*10000) / 10000
+	// Determine decimal precision based on the original prices
+	// Count decimal places in bid price
+	bidStr := fmt.Sprintf("%.6f", spreadInfo.BidPrice)
+	bidDecimals := 0
+	if idx := strings.Index(bidStr, "."); idx != -1 {
+		bidDecimals = len(bidStr) - idx - 1
+	}
+	// Count decimal places in ask price
+	askStr := fmt.Sprintf("%.6f", spreadInfo.AskPrice)
+	askDecimals := 0
+	if idx := strings.Index(askStr, "."); idx != -1 {
+		askDecimals = len(askStr) - idx - 1
+	}
+	// Use the minimum of the two to ensure compatibility
+	precision := min(bidDecimals, askDecimals)
+	// Ensure we don't exceed 5 decimals (Kraken's maximum)
+	precision = min(precision, 5)
+	// Ensure we have at least 4 decimals
+	precision = max(precision, 4)
+
+	// Round prices to the determined precision
+	multiplier := math.Pow10(precision)
+	newBuyPrice = math.Round(newBuyPrice*multiplier) / multiplier
+	newSellPrice = math.Round(newSellPrice*multiplier) / multiplier
 
 	// Check if narrowed prices are too close or equal
 	if newSellPrice <= newBuyPrice {
 		// Send Slack notification about the error
 		slackErr := SendSlackMessage(fmt.Sprintf(
 			"❌ Trade %s/USD cancelled\n"+
-				"Reason: Narrowed prices are too close (buy: %.4f, sell: %.4f)",
+				"Reason: Narrowed prices are too close (buy: %.6f, sell: %.6f)\n"+
+				"Using precision: %d decimal places",
 			coin,
 			newBuyPrice,
 			newSellPrice,
+			precision,
 		))
 		if slackErr != nil {
 			fmt.Printf("Warning: Failed to send Slack notification: %v\n", slackErr)
 		}
 
-		return "", "", 0, 0, fmt.Errorf("narrowed prices are too close or equal (buy: %.4f, sell: %.4f). Please use a lower spread narrowing factor", newBuyPrice, newSellPrice)
+		return "", "", 0, 0, fmt.Errorf("narrowed prices are too close or equal (buy: %.6f, sell: %.6f). Please use a lower spread narrowing factor", newBuyPrice, newSellPrice)
 	}
 
 	// Calculate estimated profit based on the new prices
@@ -181,13 +204,13 @@ func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untr
 	// Print spread information
 	fmt.Printf("\n🔄 Placing spread orders for %s/USD:\n", coin)
 	fmt.Printf("Volume: %.5f\n", volume)
-	fmt.Printf("Original buy price: %.4f\n", spreadInfo.BidPrice)
-	fmt.Printf("Original sell price: %.4f\n", spreadInfo.AskPrice)
-	fmt.Printf("Original spread: %.4f (%.4f%%)\n", spreadInfo.Spread, (spreadInfo.Spread/spreadInfo.BidPrice)*100)
+	fmt.Printf("Original buy price: %.6f\n", spreadInfo.BidPrice)
+	fmt.Printf("Original sell price: %.6f\n", spreadInfo.AskPrice)
+	fmt.Printf("Original spread: %.6f (%.4f%%)\n", spreadInfo.Spread, (spreadInfo.Spread/spreadInfo.BidPrice)*100)
 	fmt.Printf("Spread narrowing: %.2f%%\n", spreadNarrowFactor*100)
-	fmt.Printf("Center price: %.4f\n", centerPrice)
-	fmt.Printf("Narrowed buy price: %.4f\n", newBuyPrice)
-	fmt.Printf("Narrowed sell price: %.4f\n", newSellPrice)
+	fmt.Printf("Center price: %.6f\n", centerPrice)
+	fmt.Printf("Narrowed buy price: %.6f\n", newBuyPrice)
+	fmt.Printf("Narrowed sell price: %.6f\n", newSellPrice)
 	fmt.Printf("Estimated profit: %.2f USD (%.4f%%)\n", estimatedProfit, estimatedPercentGain)
 
 	// Place buy order at the new buy price
@@ -210,13 +233,13 @@ func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untr
 	slackErr := SendSlackMessage(fmt.Sprintf(
 		"🔄 Placing spread orders for %s/USD\n"+
 			"Volume: %.5f\n"+
-			"Original buy price: %.4f\n"+
-			"Original sell price: %.4f\n"+
-			"Original spread: %.4f (%.4f%%)\n"+
+			"Original buy price: %.6f\n"+
+			"Original sell price: %.6f\n"+
+			"Original spread: %.6f (%.4f%%)\n"+
 			"Spread narrowing: %.2f%%\n"+
-			"Center price: %.4f\n"+
-			"Narrowed buy price: %.4f\n"+
-			"Narrowed sell price: %.4f\n"+
+			"Center price: %.6f\n"+
+			"Narrowed buy price: %.6f\n"+
+			"Narrowed sell price: %.6f\n"+
 			"Estimated profit: %.2f USD (%.4f%%)\n"+
 			"Buy Order ID: %s\n"+
 			"Sell Order ID: %s",
@@ -595,4 +618,19 @@ func EditOrder(txId string, price float64, volume float64) (string, error) {
 	}
 
 	return response.Result.TxId, nil
+}
+
+// Helper functions for min/max
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
 }
