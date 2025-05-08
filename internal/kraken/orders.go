@@ -150,6 +150,11 @@ func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untr
 	newBuyPrice := spreadInfo.BidPrice + (centerPrice-spreadInfo.BidPrice)*spreadNarrowFactor
 	newSellPrice := spreadInfo.AskPrice - (spreadInfo.AskPrice-centerPrice)*spreadNarrowFactor
 
+	// Check if narrowed prices are too close or equal
+	if newSellPrice <= newBuyPrice {
+		return "", "", 0, 0, fmt.Errorf("narrowed prices are too close or equal (buy: %.4f, sell: %.4f). Please use a lower spread narrowing factor", newBuyPrice, newSellPrice)
+	}
+
 	// Calculate estimated profit based on the new prices
 	estimatedProfit := (newSellPrice - newBuyPrice) * volume
 

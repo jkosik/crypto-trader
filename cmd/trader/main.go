@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jkosik/crypto-trader/internal/kraken"
@@ -196,6 +197,11 @@ func main() {
 
 		buyTxId, sellTxId, estimatedProfit, estimatedPercentGain, err := kraken.PlaceSpreadOrders(*baseCoin, spreadInfo, *volume, *untradeable, spreadNarrowFactor)
 		if err != nil {
+			if strings.Contains(err.Error(), "narrowed prices are too close or equal") {
+				fmt.Printf("\n❌ Error: %v\n", err)
+				fmt.Println("Please try again with a lower spread narrowing factor or wait for a wider spread.")
+				os.Exit(1)
+			}
 			fmt.Printf("Error placing spread orders: %v\n", err)
 			os.Exit(1)
 		}
