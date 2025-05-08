@@ -144,6 +144,9 @@ func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untr
 		spreadNarrowFactor = 1
 	}
 
+	fmt.Printf("\nBid price: %.6f\n", spreadInfo.BidPrice)
+	fmt.Printf("Ask price: %.6f\n", spreadInfo.AskPrice)
+
 	// Calculate the center price of the spread
 	centerPrice := (spreadInfo.AskPrice + spreadInfo.BidPrice) / 2
 
