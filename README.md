@@ -59,7 +59,8 @@ go run cmd/trader/main.go -coin <COIN> -volume <AMOUNT> [-order] [-untradeable] 
 
 ### Loop Bot
 ```bash
-go run cmd/loop/main.go -coin <COIN> -volume <AMOUNT> [-limitprice <PRICE>] [-iterations <NUMBER>]
+cd cmd/loop
+go run main.go -coin <COIN> -volume <AMOUNT> [-iterations <NUMBER>]
 ```
 
 ### Flags
@@ -67,7 +68,6 @@ go run cmd/loop/main.go -coin <COIN> -volume <AMOUNT> [-limitprice <PRICE>] [-it
 - `-volume`: Base coin volume to trade
 - `-order`: Place actual orders (default: false)
 - `-untradeable`: Place orders at untradeable prices (orders won't be executed - close them manually)
-- `-limitprice`: Maximum price limit for the base coin
 - `-iterations`: Number of trades to execute (default: 10)
 
 ## Examples
@@ -89,10 +89,7 @@ go run cmd/trader/main.go -coin SUNDOG -volume 100.0 -order -editorder
 
 ### Execute multiple trades
 ```bash
-# Execute N iterations of trades with price monitoring
-go run cmd/loop/main.go -coin SUNDOG -volume 300 -limitprice 0.05 -iterations 2
-
-# Execute N iterations of trades without price monitoring
+# Execute N iterations of trades
 go run cmd/loop/main.go -coin SUNDOG -volume 300 -iterations 2
 ```
 
