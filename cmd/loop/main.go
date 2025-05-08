@@ -71,7 +71,7 @@ func main() {
 		fmt.Printf("Running iteration %d\n", i)
 
 		// Run the trader command
-		cmd := exec.Command("go", "run", traderPath, "-coin", *baseCoin, "-order", "-volume", fmt.Sprintf("%f", *volume), "-spreadnarrow", "0.7")
+		cmd := exec.Command("go", "run", traderPath, "-coin", *baseCoin, "-order", "-volume", fmt.Sprintf("%f", *volume))
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 
