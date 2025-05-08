@@ -267,25 +267,30 @@ func main() {
 
 				fmt.Printf("Total Fees: %.2f USD (Buy: %.2f, Sell: %.2f)\n", totalFees, buyFee, sellFee)
 				slackErr := kraken.SendSlackMessage(fmt.Sprintf(
-					"Trade %s in the volume %.5f executed\n"+
-						"Estimated Profit: $%.2f (%.4f%%)\n"+
-						"Spread now: %.8f (%.4f%%)\n"+
-						"24h Volume: %.2f\n"+
-						"Fees: $%.2f (Buy: $%.2f, Sell: $%.2f)\n"+
-						"Buy price: %.8f\n"+
-						"Sell price: %.8f",
+					"✅ Trade %s/USD executed\n"+
+						"Volume: %.5f\n"+
+						"Buy price: %.6f\n"+
+						"Sell price: %.6f\n"+
+						"Estimated profit: %.2f USD (%.4f%%)\n"+
+						"Buy Order ID: %s\n"+
+						"Sell Order ID: %s\n"+
+						"Spread now: %.6f (%.4f%%)\n"+
+						"24h Volume: %.2f USD\n"+
+						"Fees: %.2f USD (Buy: %.2f, Sell: %.2f)",
 					*baseCoin,
 					*volume,
+					buyPrice,
+					sellPrice,
 					estimatedProfit,
 					estimatedPercentGain,
+					buyTxId,
+					sellTxId,
 					spread,
 					spreadPercent,
 					volume24h,
 					totalFees,
 					buyFee,
 					sellFee,
-					buyPrice,
-					sellPrice,
 				))
 				if slackErr != nil {
 					fmt.Printf("Error sending Slack message: %v\n", slackErr)
