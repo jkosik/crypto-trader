@@ -70,6 +70,12 @@ go run main.go -coin <COIN> -volume <AMOUNT> [-iterations <NUMBER>]
 - `-untradeable`: Place orders at untradeable prices (orders won't be executed - close them manually)
 - `-iterations`: Number of trades to execute (default: 10)
 
+### Trading Strategy
+The bot uses a fixed spread narrowing factor of 0.7 (70%) to place orders closer to the center price. This means:
+- Buy orders are placed 70% of the way from the bid price towards the center price
+- Sell orders are placed 70% of the way from the ask price towards the center price
+- This helps increase the probability of order execution while maintaining a profitable spread
+
 ## Examples
 
 ### Execute a single trade

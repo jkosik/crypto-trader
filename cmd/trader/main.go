@@ -12,8 +12,9 @@ import (
 
 const (
 	// Trading conditions
-	minSpreadPercent = 0.7    // Minimum spread percentage required to place orders
-	minVolume24h     = 100000 // Minimum 24h volume in USD required to place orders
+	minSpreadPercent   = 0.5    // Minimum spread percentage required to place orders
+	minVolume24h       = 100000 // Minimum 24h volume in USD required to place orders
+	spreadNarrowFactor = 0.7    // How much to narrow the spread (0.0 to 1.0)
 )
 
 // Kraken crypto trading bot that executes spread trades on specified cryptocurrency pairs.
@@ -27,26 +28,10 @@ const (
 //   -order           Place actual orders (default: false)
 //   -untradeable     Place orders at untradeable prices (orders won't be executed)
 //   -volume float    Base coin volume to trade
-//   -spreadnarrow    Optional: How much to narrow the spread (0.0 to 1.0, default: 0.0)
-//                    Permitted values:
-//                    - 0.0: No narrowing, use full spread (default)
-//                    - 0.25: Narrow to quarter of the spread
-//                    - 0.5: Narrow to half of the spread
-//                    - 0.75: Narrow to quarter of the spread
-//                    - 1.0: Place orders at center price (minimum spread)
 //
 // Example:
-//   # Place a real trade with full spread (no narrowing)
+//   # Place a real trade
 //   go run cmd/trader/main.go -coin SUNDOG -volume 300 -order
-//
-//   # Place a trade with half spread narrowing
-//   go run cmd/trader/main.go -coin SUNDOG -volume 300 -order -spreadnarrow 0.5
-//
-//   # Place a trade with minimal spread narrowing (25%)
-//   go run cmd/trader/main.go -coin SUNDOG -volume 300 -order -spreadnarrow 0.25
-//
-//   # Place a trade with maximum spread narrowing (center price)
-//   go run cmd/trader/main.go -coin SUNDOG -volume 300 -order -spreadnarrow 1.0
 //
 //   # Simulate a trade without actually placing orders
 //   go run cmd/trader/main.go -coin SUNDOG -volume 300
@@ -65,7 +50,6 @@ func main() {
 	orderFlag := flag.Bool("order", false, "Place actual orders (default: false)")
 	untradeable := flag.Bool("untradeable", false, "Place orders at untradeable prices (orders won't be executed - close them manually)")
 	volume := flag.Float64("volume", 0.0, "Base coin volume to trade")
-	spreadNarrow := flag.Float64("spreadnarrow", 0.0, "Optional: How much to narrow the spread (0.0 to 1.0, default: 0.0)")
 
 	// Parse command line flags
 	flag.Parse()
@@ -73,12 +57,11 @@ func main() {
 	// Check if required flags are set
 	if *baseCoin == "" || *volume == 0.0 {
 		fmt.Println("Error: -coin flag is required")
-		fmt.Println("Usage: go run cmd/trader/main.go -coin <COIN> -volume <AMOUNT> [-order] [-untradeable] [-spreadnarrow <FACTOR>]")
+		fmt.Println("Usage: go run cmd/trader/main.go -coin <COIN> -volume <AMOUNT> [-order] [-untradeable]")
 		fmt.Println("\nFlags:")
 		fmt.Println("  -coin <COIN>    Base coin to trade (e.g. BTC, SOL)")
 		fmt.Println("  -order         Place actual orders (default: false)")
 		fmt.Println("  -untradeable   Place orders at untradeable prices (orders won't be executed - close them manually)")
-		fmt.Println("  -spreadnarrow  Optional: How much to narrow the spread (0.0 to 1.0, default: 0.0)")
 		os.Exit(1)
 	}
 
@@ -211,7 +194,7 @@ func main() {
 			break
 		}
 
-		buyTxId, sellTxId, estimatedProfit, estimatedPercentGain, err := kraken.PlaceSpreadOrders(*baseCoin, spreadInfo, *volume, *untradeable, *spreadNarrow)
+		buyTxId, sellTxId, estimatedProfit, estimatedPercentGain, err := kraken.PlaceSpreadOrders(*baseCoin, spreadInfo, *volume, *untradeable, spreadNarrowFactor)
 		if err != nil {
 			fmt.Printf("Error placing spread orders: %v\n", err)
 			os.Exit(1)
