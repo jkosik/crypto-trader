@@ -152,6 +152,18 @@ func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untr
 
 	// Check if narrowed prices are too close or equal
 	if newSellPrice <= newBuyPrice {
+		// Send Slack notification about the error
+		slackErr := SendSlackMessage(fmt.Sprintf(
+			"❌ Trade %s/USD cancelled\n"+
+				"Reason: Narrowed prices are too close (buy: %.4f, sell: %.4f)",
+			coin,
+			newBuyPrice,
+			newSellPrice,
+		))
+		if slackErr != nil {
+			fmt.Printf("Warning: Failed to send Slack notification: %v\n", slackErr)
+		}
+
 		return "", "", 0, 0, fmt.Errorf("narrowed prices are too close or equal (buy: %.4f, sell: %.4f). Please use a lower spread narrowing factor", newBuyPrice, newSellPrice)
 	}
 
