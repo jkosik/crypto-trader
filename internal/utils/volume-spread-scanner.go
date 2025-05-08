@@ -12,9 +12,9 @@ import (
 
 // Configuration parameters
 const (
-	MinVolumeUSD  = 500000.0 // Minimum 24h volume in USD
-	MinSpreadPct  = 0.5      // Minimum spread percentage
-	TopPairsCount = 10       // Number of top pairs to show in each category
+	MinVolumeUSD  = 1000000.0 // Minimum 24h volume in USD
+	MinSpreadPct  = 0.2       // Minimum spread percentage
+	TopPairsCount = 10        // Number of top pairs to show in each category
 )
 
 // ScannerTickerResponse represents the response from the Kraken API ticker endpoint
