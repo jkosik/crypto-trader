@@ -150,13 +150,26 @@ func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untr
 	// Calculate the center price of the spread
 	centerPrice := (spreadInfo.AskPrice + spreadInfo.BidPrice) / 2
 
-	// Check decimal places in the original ask price
-	priceStr := strconv.FormatFloat(spreadInfo.AskPrice, 'f', -1, 64)
-	decimals := 0
-	if idx := strings.Index(priceStr, "."); idx != -1 {
-		decimals = len(priceStr) - idx - 1
+	// Check decimal places in both bid and ask prices
+	bidStr := strconv.FormatFloat(spreadInfo.BidPrice, 'f', -1, 64)
+	askStr := strconv.FormatFloat(spreadInfo.AskPrice, 'f', -1, 64)
+
+	bidDecimals := 0
+	if idx := strings.Index(bidStr, "."); idx != -1 {
+		bidDecimals = len(bidStr) - idx - 1
 	}
-	fmt.Printf("\nDecimals: %s (has %d decimal places)\n", priceStr, decimals)
+
+	askDecimals := 0
+	if idx := strings.Index(askStr, "."); idx != -1 {
+		askDecimals = len(askStr) - idx - 1
+	}
+
+	// Use the higher number of decimals
+	decimals := max(bidDecimals, askDecimals)
+
+	fmt.Printf("\nBid: %s (%d decimals)\n", bidStr, bidDecimals)
+	fmt.Printf("Ask: %s (%d decimals)\n", askStr, askDecimals)
+	fmt.Printf("Using %d decimal places\n", decimals)
 
 	// Calculate new buy and sell prices based on the narrowing factor
 	newBuyPrice := spreadInfo.BidPrice + (centerPrice-spreadInfo.BidPrice)*spreadNarrowFactor
