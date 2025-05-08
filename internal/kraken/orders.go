@@ -147,32 +147,20 @@ func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untr
 	// Calculate the center price of the spread
 	centerPrice := (spreadInfo.AskPrice + spreadInfo.BidPrice) / 2
 
+	// Check decimal places in the original ask price
+	priceStr := strconv.FormatFloat(spreadInfo.AskPrice, 'f', -1, 64)
+	decimals := 0
+	if idx := strings.Index(priceStr, "."); idx != -1 {
+		decimals = len(priceStr) - idx - 1
+	}
+	fmt.Printf("\nDecimals: %s (has %d decimal places)\n", priceStr, decimals)
+
 	// Calculate new buy and sell prices based on the narrowing factor
 	newBuyPrice := spreadInfo.BidPrice + (centerPrice-spreadInfo.BidPrice)*spreadNarrowFactor
 	newSellPrice := spreadInfo.AskPrice - (spreadInfo.AskPrice-centerPrice)*spreadNarrowFactor
 
-	// Determine decimal precision based on the original prices
-	// Count decimal places in bid price
-	bidStr := fmt.Sprintf("%.6f", spreadInfo.BidPrice)
-	bidDecimals := 0
-	if idx := strings.Index(bidStr, "."); idx != -1 {
-		bidDecimals = len(bidStr) - idx - 1
-	}
-	// Count decimal places in ask price
-	askStr := fmt.Sprintf("%.6f", spreadInfo.AskPrice)
-	askDecimals := 0
-	if idx := strings.Index(askStr, "."); idx != -1 {
-		askDecimals = len(askStr) - idx - 1
-	}
-	// Use the minimum of the two to ensure compatibility
-	precision := min(bidDecimals, askDecimals)
-	// Ensure we don't exceed 5 decimals (Kraken's maximum)
-	precision = min(precision, 5)
-	// Ensure we have at least 4 decimals
-	precision = max(precision, 4)
-
-	// Round prices to the determined precision
-	multiplier := math.Pow10(precision)
+	// Round to detected decimal places
+	multiplier := math.Pow10(decimals)
 	newBuyPrice = math.Round(newBuyPrice*multiplier) / multiplier
 	newSellPrice = math.Round(newSellPrice*multiplier) / multiplier
 
@@ -181,12 +169,10 @@ func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untr
 		// Send Slack notification about the error
 		slackErr := SendSlackMessage(fmt.Sprintf(
 			"❌ Trade %s/USD cancelled\n"+
-				"Reason: Narrowed prices are too close (buy: %.6f, sell: %.6f)\n"+
-				"Using precision: %d decimal places",
+				"Reason: Narrowed prices are too close (buy: %.6f, sell: %.6f)\n",
 			coin,
 			newBuyPrice,
 			newSellPrice,
-			precision,
 		))
 		if slackErr != nil {
 			fmt.Printf("Warning: Failed to send Slack notification: %v\n", slackErr)
