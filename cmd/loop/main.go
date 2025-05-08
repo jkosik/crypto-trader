@@ -85,5 +85,12 @@ func main() {
 		if _, err := reportFile.WriteString(successMsg); err != nil {
 			fmt.Printf("Error writing to report file: %v\n", err)
 		}
+
+		// Add a delay between iterations to prevent too rapid execution
+		if i < *iterations {
+			delayMinutes := 5
+			fmt.Printf("\nWaiting %d minutes before next iteration...\n", delayMinutes)
+			time.Sleep(time.Duration(delayMinutes) * time.Minute)
+		}
 	}
 }
