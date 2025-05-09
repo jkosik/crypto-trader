@@ -7,8 +7,7 @@ A trading bot for cryptocurrency markets that executes trades based on price spr
 - Automated trading based on price spreads
 - Support for multiple cryptocurrencies
 - Price monitoring and limit order placement
-- Automatic order cancellation when price limits are exceeded
-- Optional order editing after one leg is executed
+- Narrowing spread to increase probability of trades to be executed
 - Detailed logging and reporting
 
 ## What is spread trading
@@ -68,7 +67,11 @@ go run main.go -coin <COIN> -volume <AMOUNT> [-iterations <NUMBER>]
 - `-volume`: Base coin volume to trade
 - `-order`: Place actual orders (default: false)
 - `-untradeable`: Place orders at untradeable prices (orders won't be executed - close them manually)
-- `-iterations`: Number of trades to execute (default: 10)
+
+Further tuning can be done in `cmd/trader/main.go`:
+- minSpreadPercent   = 0.5    // Minimum spread percentage required to place orders
+- minVolume24h       = 100000 // Minimum 24h volume in USD required to place orders
+- spreadNarrowFactor = 0.7    // How much to narrow the spread (0.0 to 1.0)
 
 ### Trading Strategy
 The bot uses a fixed spread narrowing factor of 0.7 (70%) to place orders closer to the center price. This means:
@@ -88,15 +91,6 @@ go run cmd/trader/main.go -coin SUNDOG -volume 100.0
 
 # Place untradeable orders in extreme prices (for testing)
 go run cmd/trader/main.go -coin SUNDOG -volume 100.0 -order -untradeable
-
-# Place orders and edit them after one leg is executed
-go run cmd/trader/main.go -coin SUNDOG -volume 100.0 -order -editorder
-```
-
-### Execute multiple trades
-```bash
-# Execute N iterations of trades
-go run cmd/loop/main.go -coin SUNDOG -volume 300 -iterations 2
 ```
 
 ## Asset Codes
