@@ -1,3 +1,5 @@
+// Scans for trading pairs with high volume and high spread
+
 package main
 
 import (
@@ -10,7 +12,7 @@ import (
 	"strings"
 )
 
-// Configuration parameters
+// Parameters
 const (
 	MinVolumeUSD  = 1000000.0 // Minimum 24h volume in USD
 	MinSpreadPct  = 0.2       // Minimum spread percentage
@@ -41,6 +43,15 @@ type TradingPair struct {
 	SpreadPct float64
 	Volume24h float64
 	VolumeUSD float64
+}
+
+func main() {
+	fmt.Printf("Scanning for trading pairs with:\n")
+	fmt.Printf("- Minimum 24h volume: $%.0f USD\n", MinVolumeUSD)
+	fmt.Printf("- Minimum spread: %.1f%%\n", MinSpreadPct)
+	fmt.Printf("- Showing top %d pairs in each category\n\n", TopPairsCount)
+
+	scanPairs()
 }
 
 // makePublicRequest makes a request to Kraken's public API endpoints
@@ -172,13 +183,4 @@ func scanPairs() {
 				pair.VolumeUSD)
 		}
 	}
-}
-
-func main() {
-	fmt.Printf("Scanning for trading pairs with:\n")
-	fmt.Printf("- Minimum 24h volume: $%.0f USD\n", MinVolumeUSD)
-	fmt.Printf("- Minimum spread: %.1f%%\n", MinSpreadPct)
-	fmt.Printf("- Showing top %d pairs in each category\n\n", TopPairsCount)
-
-	scanPairs()
 }

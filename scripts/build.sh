@@ -11,4 +11,5 @@ go build -o bin/trader ./cmd/trader
 echo "Building loop..."
 go build -o bin/loop ./cmd/loop
 
+
 echo "Build complete! Binaries are in the bin/ directory"

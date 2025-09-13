@@ -98,26 +98,3 @@ func MakePrivateRequest(url string, method string, payload string, apiKey string
 
 	return body, nil
 }
-
-// KrakenAssetCode converts standard coin codes to Kraken's format
-func KrakenAssetCode(standardCode string) (string, error) {
-	hardcodedMap := map[string]string{
-		"BTC":     "XBT.F",
-		"ETH":     "ETH",
-		"SOL":     "SOL.F",
-		"SUNDOG":  "SUNDOG",
-		"TRUMP":   "TRUMP",
-		"GUN":     "GUN",
-		"OCEAN":   "OCEAN",
-		"GHIBLI":  "GHIBLI",
-		"TITCOIN": "TITCOIN",
-		"PAXG":    "PAXG",
-		"FWOG":    "FWOG",
-	}
-
-	code, ok := hardcodedMap[strings.ToUpper(standardCode)]
-	if !ok {
-		return "", fmt.Errorf("unknown standard code: %s", standardCode)
-	}
-	return code, nil
-}

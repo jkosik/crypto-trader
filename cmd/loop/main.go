@@ -26,18 +26,6 @@ import (
 //
 //   # Execute 10 trades (default iteration count)
 //   go run cmd/loop/main.go -coin SUNDOG -volume 300
-//
-// Note: This program requires the same environment variables as the trader bot:
-//   KRAKEN_API_KEY
-//   KRAKEN_PRIVATE_KEY
-//   SLACK_WEBHOOK    (optional) Webhook URL for sending trade notifications to Slack
-//
-// The bot automatically handles conversion between human-readable coin codes and Kraken's asset codes.
-// For example:
-//   - BTC → XBT.F
-//   - ETH → ETH
-//   - SOL → SOL.F
-//   - SUNDOG → SUNDOG
 
 func main() {
 	baseCoin := flag.String("coin", "", "Base coin to trade (e.g. BTC, SOL)")
@@ -64,8 +52,12 @@ func main() {
 	}
 	defer reportFile.Close()
 
-	// Get the absolute path to the trader binary
-	traderPath := filepath.Join("..", "trader", "main.go")
+	// Get the path to the trader binary, working from both root and cmd/loop
+	traderPath, err := getTraderPath()
+	if err != nil {
+		fmt.Printf("Error finding trader path: %v\n", err)
+		os.Exit(1)
+	}
 
 	for i := 1; i <= *iterations; i++ {
 		fmt.Printf("Running iteration %d\n", i)
@@ -93,4 +85,44 @@ func main() {
 			time.Sleep(time.Duration(delayMinutes) * time.Minute)
 		}
 	}
+}
+
+// getTraderPath returns the correct path to the trader binary based on current directory
+// to allow running from both root and cmd/loop
+func getTraderPath() (string, error) {
+	// Get current working directory
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("error getting current directory: %v", err)
+	}
+
+	// Check if we're in the project root (look for go.mod)
+	if _, err := os.Stat("go.mod"); err == nil {
+		// We're in project root, trader is at cmd/trader/main.go
+		return "cmd/trader/main.go", nil
+	}
+
+	// Check if we're in cmd/loop directory
+	if filepath.Base(cwd) == "loop" && filepath.Base(filepath.Dir(cwd)) == "cmd" {
+		// We're in cmd/loop, trader is at ../trader/main.go
+		return filepath.Join("..", "trader", "main.go"), nil
+	}
+
+	// Try to find go.mod by walking up the directory tree
+	dir := cwd
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			// Found go.mod, construct path from project root
+			return filepath.Join(dir, "cmd", "trader", "main.go"), nil
+		}
+
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			// Reached filesystem root without finding go.mod
+			break
+		}
+		dir = parent
+	}
+
+	return "", fmt.Errorf("could not find project root (go.mod not found)")
 }

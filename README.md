@@ -54,20 +54,20 @@ There are also some risks associated (e.g. sudden market volatility, trading fee
 ### Trader Bot
 Execute single trade:
 ```bash
-cd cmd/trader
-go run main.go -coin <COIN> -volume <AMOUNT> [-order] [-untradeable] [-editorder]
+go run cmd/trader/main.go -coin <COIN> -volume <AMOUNT> [-order] [-untradeable] [-editorder]
 ```
 
 #### Examples of a single trade
 ```bash
-# Place a real trade
-go run cmd/trader/main.go -coin SUNDOG -volume 100.0 -order
-
 # Simulate a trade without actually placing orders (to see balance and asset codes)
-go run cmd/trader/main.go -coin SUNDOG -volume 100.0
+go run cmd/trader/main.go -coin GHIBLI -volume 3000.0
+
+# Place a real trade
+go run cmd/trader/main.go -coin GHIBLI -volume 3000.0 -order
+
 
 # Place untradeable orders in extreme prices (for testing)
-go run cmd/trader/main.go -coin SUNDOG -volume 100.0 -order -untradeable
+go run cmd/trader/main.go -coin GHIBLI -volume 3000.0 -order -untradeable
 ```
 
 ### Loop Bot
@@ -89,9 +89,9 @@ Further tuning can be done in `cmd/trader/main.go`:
 - spreadNarrowFactor = 0.7    // How much to narrow the spread (0.0 to 1.0)
 
 ## Utils
-### Check trading pair stats (traded volume, high spread...)
 ```
-go run internal/utils/volume-spread-scanner.go
+go run cmd/utils/check-balance.go
+go run cmd/utils/volume-spread-scanner.go
 ```
 
 ### Trading Strategy
@@ -102,6 +102,7 @@ The bot uses a fixed spread narrowing factor of 0.7 (70%) to place orders closer
 
 
 ## Asset Codes
+Trading API endpoints use human
 Some Kraken API endpoints needs conversion from human-readable codes to asset codes. For example:
 - BTC → XBT.F
 - ETH → ETH

@@ -12,9 +12,9 @@ import (
 
 const (
 	// Trading conditions
-	minSpreadPercent   = 0.5   // Minimum spread percentage required to place orders
-	minVolume24h       = 10000 // Minimum 24h volume in USD required to place orders
-	spreadNarrowFactor = 0.7   // How much to narrow the spread (0.0 to 1.0)
+	minSpreadPercent   = 0.5  // Minimum spread percentage required to place orders
+	minVolume24h       = 1000 // Minimum 24h volume in USD required to place orders
+	spreadNarrowFactor = 0.7  // How much to narrow the spread (0.0 to 1.0)
 )
 
 // Kraken crypto trading bot that executes spread trades on specified cryptocurrency pairs.
@@ -38,11 +38,6 @@ const (
 //
 //   # Place untradeable orders in extreme prices (for testing)
 //   go run cmd/trader/main.go -coin SUNDOG -volume 300 -order -untradeable
-//
-// Environment variables required:
-//   KRAKEN_API_KEY
-//   KRAKEN_PRIVATE_KEY
-//   SLACK_WEBHOOK    (optional) Webhook URL for sending trade notifications to Slack
 
 func main() {
 	// Define command line flags
@@ -62,13 +57,6 @@ func main() {
 		fmt.Println("  -coin <COIN>    Base coin to trade (e.g. BTC, SOL)")
 		fmt.Println("  -order         Place actual orders (default: false)")
 		fmt.Println("  -untradeable   Place orders at untradeable prices (orders won't be executed - close them manually)")
-		os.Exit(1)
-	}
-
-	// Get Kraken asset code for the selected coin
-	baseCoinBalanceCode, err := kraken.KrakenAssetCode(*baseCoin)
-	if err != nil {
-		fmt.Printf("Error getting Kraken asset code: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -123,11 +111,15 @@ func main() {
 		fmt.Printf("Error getting OHLC data: %v\n", err)
 	}
 
-	// Check if we have sufficient balance and place the order
-	// Check balance for the base coin
-	// We pass empty string as holdCurrency because crypto coins (like BTC, SOL, etc.) don't have
-	// alternative currency codes for holds like USD does (USD.F vs ZUSD)
-	baseBalance, err := kraken.GetBalance(balanceBody, baseCoinBalanceCode, "")
+	// Some asset codes differ submited on CLI differ from those recognized by Kraken.
+	baseCoinBalanceCode, err := kraken.KrakenAssetCode(*baseCoin)
+	if err != nil {
+		fmt.Printf("Error getting Kraken asset code: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Check available balance for the base coin (ignoring holds from open trades)
+	baseBalance, err := kraken.GetBalance(balanceBody, baseCoinBalanceCode)
 	if err != nil {
 		fmt.Printf("Error getting %s balance: %v\n", baseCoinBalanceCode, err)
 		os.Exit(1)
@@ -140,8 +132,8 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Check USD balance (handles both USD.F and ZUSD)
-	usdBalance, err := kraken.GetBalance(balanceBody, "ZUSD", "ZUSD")
+	// Check USD balance
+	usdBalance, err := kraken.GetBalance(balanceBody, "ZUSD")
 	if err != nil {
 		fmt.Printf("Error getting USD balance: %v\n", err)
 		os.Exit(1)
