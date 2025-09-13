@@ -12,9 +12,9 @@ import (
 
 const (
 	// Trading conditions
-	minSpreadPercent   = 0.5    // Minimum spread percentage required to place orders
-	minVolume24h       = 100000 // Minimum 24h volume in USD required to place orders
-	spreadNarrowFactor = 0.7    // How much to narrow the spread (0.0 to 1.0)
+	minSpreadPercent   = 0.5   // Minimum spread percentage required to place orders
+	minVolume24h       = 10000 // Minimum 24h volume in USD required to place orders
+	spreadNarrowFactor = 0.7   // How much to narrow the spread (0.0 to 1.0)
 )
 
 // Kraken crypto trading bot that executes spread trades on specified cryptocurrency pairs.
@@ -141,7 +141,7 @@ func main() {
 	}
 
 	// Check USD balance (handles both USD.F and ZUSD)
-	usdBalance, err := kraken.GetBalance(balanceBody, "USD.F", "ZUSD")
+	usdBalance, err := kraken.GetBalance(balanceBody, "ZUSD", "ZUSD")
 	if err != nil {
 		fmt.Printf("Error getting USD balance: %v\n", err)
 		os.Exit(1)

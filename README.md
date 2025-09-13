@@ -52,11 +52,26 @@ There are also some risks associated (e.g. sudden market volatility, trading fee
 ## Usage
 
 ### Trader Bot
+Execute single trade:
 ```bash
-go run cmd/trader/main.go -coin <COIN> -volume <AMOUNT> [-order] [-untradeable] [-editorder]
+cd cmd/trader
+go run main.go -coin <COIN> -volume <AMOUNT> [-order] [-untradeable] [-editorder]
+```
+
+#### Examples of a single trade
+```bash
+# Place a real trade
+go run cmd/trader/main.go -coin SUNDOG -volume 100.0 -order
+
+# Simulate a trade without actually placing orders (to see balance and asset codes)
+go run cmd/trader/main.go -coin SUNDOG -volume 100.0
+
+# Place untradeable orders in extreme prices (for testing)
+go run cmd/trader/main.go -coin SUNDOG -volume 100.0 -order -untradeable
 ```
 
 ### Loop Bot
+Execute trades in a loop:
 ```bash
 cd cmd/loop
 go run main.go -coin <COIN> -volume <AMOUNT> [-iterations <NUMBER>]
@@ -73,25 +88,18 @@ Further tuning can be done in `cmd/trader/main.go`:
 - minVolume24h       = 100000 // Minimum 24h volume in USD required to place orders
 - spreadNarrowFactor = 0.7    // How much to narrow the spread (0.0 to 1.0)
 
+## Utils
+### Check trading pair stats (traded volume, high spread...)
+```
+go run internal/utils/volume-spread-scanner.go
+```
+
 ### Trading Strategy
 The bot uses a fixed spread narrowing factor of 0.7 (70%) to place orders closer to the center price. This means:
 - Buy orders are placed 70% of the way from the bid price towards the center price
 - Sell orders are placed 70% of the way from the ask price towards the center price
 - This helps increase the probability of order execution while maintaining a profitable spread
 
-## Examples
-
-### Execute a single trade
-```bash
-# Place a real trade
-go run cmd/trader/main.go -coin SUNDOG -volume 100.0 -order
-
-# Simulate a trade without actually placing orders (to see balance and asset codes)
-go run cmd/trader/main.go -coin SUNDOG -volume 100.0
-
-# Place untradeable orders in extreme prices (for testing)
-go run cmd/trader/main.go -coin SUNDOG -volume 100.0 -order -untradeable
-```
 
 ## Asset Codes
 Some Kraken API endpoints needs conversion from human-readable codes to asset codes. For example:
