@@ -54,7 +54,7 @@ There are also some risks associated (e.g. sudden market volatility, trading fee
 ### Trader Bot
 Execute single trade:
 ```bash
-go run cmd/trader/main.go -coin <COIN> -volume <AMOUNT> [-order] [-untradeable] [-editorder]
+go run cmd/trader/main.go -coin <COIN> -volume <AMOUNT> [-order] [-untradeable]
 ```
 
 #### Examples of a single trade
@@ -70,23 +70,17 @@ go run cmd/trader/main.go -coin GHIBLI -volume 3000.0 -order
 go run cmd/trader/main.go -coin GHIBLI -volume 3000.0 -order -untradeable
 ```
 
-### Loop Bot
-Execute trades in a loop:
-```bash
-cd cmd/loop
-go run main.go -coin <COIN> -volume <AMOUNT> [-iterations <NUMBER>]
-```
-
-### Flags
-- `-coin`: Base coin to trade (e.g. BTC, SOL)
-- `-volume`: Base coin volume to trade
-- `-order`: Place actual orders (default: false)
-- `-untradeable`: Place orders at untradeable prices (orders won't be executed - close them manually)
-
-Further tuning can be done in `cmd/trader/main.go`:
+#### Further trading conditions
+Can be set in `cmd/trader/main.go`:
 - minSpreadPercent   = 0.5    // Minimum spread percentage required to place orders
 - minVolume24h       = 100000 // Minimum 24h volume in USD required to place orders
 - spreadNarrowFactor = 0.7    // How much to narrow the spread (0.0 to 1.0)
+
+### Loop Bot
+Executes trades in a loop:
+```bash
+go run cmd/loop/main.go -coin GHIBLI -volume 40000 -iterations 50
+```
 
 ## Utils
 ```

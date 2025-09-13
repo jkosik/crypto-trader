@@ -25,9 +25,9 @@ const (
 //
 // Flags:
 //   -coin string      Base coin to trade (e.g. BTC, SOL)
-//   -order           Place actual orders (default: false)
-//   -untradeable     Place orders at untradeable prices (orders won't be executed)
-//   -volume float    Base coin volume to trade
+//   -order            Place actual orders (default: false)
+//   -untradeable      Place orders at untradeable prices (orders won't be executed)
+//   -volume float     Base coin volume to trade
 //
 // Example:
 //   # Place a real trade
