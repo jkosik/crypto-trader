@@ -65,16 +65,10 @@ go run cmd/trader/main.go -pair <BASE/QUOTE> -volume <AMOUNT> [-order] [-untrade
 #### Examples of a single trade
 ```bash
 # Simulate a trade without actually placing orders (to see balance and asset codes)
-go run cmd/trader/main.go -pair GHIBLI/USD -volume 3000.0
+go run cmd/trader/main.go -pair ETH/BTC -volume 1
 
-# Place a real trade on GHIBLI/USD
-go run cmd/trader/main.go -pair GHIBLI/USD -volume 3000.0 -order
-
-# Trade ETH against BTC (1 ETH)
+# Place a real order. Trade ETH against BTC (1 ETH)
 go run cmd/trader/main.go -pair ETH/BTC -volume 1 -order
-
-# Trade BTC against USD (1 BTC)
-go run cmd/trader/main.go -pair BTC/USD -volume 0.1 -order
 
 # Place untradeable orders in extreme prices (for testing)
 go run cmd/trader/main.go -pair ETH/BTC -volume 0.01 -order -untradeable
