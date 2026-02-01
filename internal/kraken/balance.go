@@ -57,17 +57,14 @@ func getCoinBalance(body []byte, coin string) (string, error) {
 // KrakenAssetCode converts standard coin codes to Kraken's format
 func KrakenAssetCode(standardCode string) (string, error) {
 	hardcodedMap := map[string]string{
-		"BTC":     "XBT.F",
-		"ETH":     "ETH",
-		"SOL":     "SOL.F",
-		"SUNDOG":  "SUNDOG",
-		"TRUMP":   "TRUMP",
-		"GUN":     "GUN",
-		"OCEAN":   "OCEAN",
-		"GHIBLI":  "GHIBLI",
-		"TITCOIN": "TITCOIN",
-		"PAXG":    "PAXG",
-		"FWOG":    "FWOG",
+		"BTC":    "XXBT",
+		"ETH":    "XETH",
+		"SOL":    "SOL.F",
+		"SUNDOG": "SUNDOG",
+		"TRUMP":  "TRUMP",
+		"GUN":    "GUN",
+		"OCEAN":  "OCEAN",
+		"GHIBLI": "GHIBLI",
 	}
 
 	code, ok := hardcodedMap[strings.ToUpper(standardCode)]

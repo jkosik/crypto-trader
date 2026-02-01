@@ -119,14 +119,14 @@ Some Kraken API endpoints needs conversion from human-readable codes to asset co
 - SUNDOG → SUNDOG
 
 If unsure, dry-run the crypto-trader by omitting `-order` flag and check the balance JSON output.
-Add the pair to the `KrakenAssetCode` function in `internal/kraken/api.go` if needed.
+Add the pair to the `KrakenAssetCode` function in `internal/kraken/balance.go` if needed.
 
 Example:
 ```go
 func KrakenAssetCode(standardCode string) (string, error) {
     hardcodedMap := map[string]string{
-        "BTC":    "XBT.F",
-        "ETH":    "ETH",
+        "BTC":    "XXBT",
+        "ETH":    "XETH",
         "SOL":    "SOL.F",
         "SUNDOG": "SUNDOG",
         "TRUMP":  "TRUMP",
