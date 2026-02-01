@@ -11,9 +11,11 @@ A trading bot for cryptocurrency markets that executes trades based on price spr
 - Detailed logging and reporting
 
 ## What is spread trading
-Any exchange (crypto or stock) joins buyers who are placing the **buy orders for the Bid price** and sellers who are placing **sell orders for the Ask price**. Bid and Ask price oscilate around **mid price, which can be considered as the market price**. All bids and asks are collected in the **order book** of the exchanage and wait for execution. When the Bid or Ask price is far away frome the market price, the order may be never executed.
+Any exchange (crypto or stock) joins buyers who are placing the **buy orders for the Bid price** and sellers who are placing **sell orders for the Ask price**. Bid and Ask price oscillate around **mid price, which can be considered as the market price**. All bids and asks are collected in the **order book** of the exchange and wait for execution. When the Bid or Ask price is far away from the market price, the order may never be executed.
 
-**Spread** is the difference between the Bid and Ask price closest to the mid price. These prices has the highest probability of being executed. Spread size depends on market conditions, asset volatility and liquidity and is mostly between 0.01 - 0.5%.
+**Spread** is the difference between the Bid and Ask price closest to the mid price. These prices have the highest probability of being executed. Spread size depends on market conditions, asset volatility and liquidity:
+- **Tight spreads (0.01 - 0.1%)**: Major pairs like BTC/USD, ETH/USD, ETH/BTC
+- **Wide spreads (0.5% - 5%)**: Altcoins with lower liquidity
 
 ### Example:
 ![Spread](readme/spread.png)
@@ -22,10 +24,13 @@ Red: Ask price (Sell orders) 10.279
 Green: Bid price (Buy orders) 10.276
 
 Ask price is always higher than the market price. Sellers (asset owners) want to sell for a higher price.
-Bid price is always lower than the market price. Buyers want always to buy cheaper.
+Bid price is always lower than the market price. Buyers always want to buy cheaper.
 
-The logic behind the spread trading is mimicking the buyers and sellers - buy slightly below the mid price and sell slightly above the mid price and profit based on small price movements.
-There are also some risks associated (e.g. sudden market volatility, trading fees etc.)
+The logic behind spread trading is mimicking the buyers and sellers - buy slightly below the mid price and sell slightly above the mid price and profit based on small price movements.
+
+**The bot now supports any trading pair**: BTC/USD, ETH/BTC, SUNDOG/USD, etc.
+
+There are also some risks associated (e.g. sudden market volatility, trading fees, trending markets)
 
 ## Setup
 
@@ -54,33 +59,39 @@ There are also some risks associated (e.g. sudden market volatility, trading fee
 ### Trader Bot
 Execute single trade:
 ```bash
-go run cmd/trader/main.go -coin <COIN> -volume <AMOUNT> [-order] [-untradeable]
+go run cmd/trader/main.go -pair <BASE/QUOTE> -volume <AMOUNT> [-order] [-untradeable]
 ```
 
 #### Examples of a single trade
 ```bash
 # Simulate a trade without actually placing orders (to see balance and asset codes)
-go run cmd/trader/main.go -coin GHIBLI -volume 3000.0
+go run cmd/trader/main.go -pair GHIBLI/USD -volume 3000.0
 
-# Place a real trade
-go run cmd/trader/main.go -coin GHIBLI -volume 3000.0 -order
+# Place a real trade on GHIBLI/USD
+go run cmd/trader/main.go -pair GHIBLI/USD -volume 3000.0 -order
 
+# Trade ETH against BTC (1 ETH)
+go run cmd/trader/main.go -pair ETH/BTC -volume 1 -order
+
+# Trade BTC against USD
+go run cmd/trader/main.go -pair BTC/USD -volume 0.1 -order
 
 # Place untradeable orders in extreme prices (for testing)
-go run cmd/trader/main.go -coin GHIBLI -volume 3000.0 -order -untradeable
+go run cmd/trader/main.go -pair GHIBLI/USD -volume 3000.0 -order -untradeable
 ```
 
 #### Trading conditions
 Can be set in `cmd/trader/main.go`:
-- **minSpreadPercent** = 0.5  // Minimum spread percentage required to place orders
-- **minVolume24h** = 1000.0 // Minimum 24h volume in USD required to place orders
+- **minSpreadPercent** = 0  // Minimum spread percentage (0 = accept any spread)
+- **minVolume24h** = 100000.0 // Minimum 24h volume in quote currency
 - **maxADX** = 20.0 // Maximum ADX value (ADX < 20 = weak trend, ideal for spread trading)
 - **adxPeriod** = 14 // ADX calculation period (standard is 14)
-- **spreadAdjustFactor** = 0.7  // Spread adjustment: 0=no spread, 0.5=half, 1=full, 2=double, etc.
+- **spreadAdjustFactor** = 0.5  // Spread adjustment: 0=no spread, 0.5=half, 1=full, 2=double, etc.
 
 ### Loop Bot
 Executes trades in a loop:
 ```bash
+# Note: Loop bot still uses old -coin flag (to be updated)
 go run cmd/loop/main.go -coin GHIBLI -volume 40000 -iterations 50
 ```
 

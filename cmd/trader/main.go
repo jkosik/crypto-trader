@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jkosik/crypto-trader/internal/kraken"
@@ -43,7 +44,7 @@ const (
 
 func main() {
 	// Define command line flags
-	baseCoin := flag.String("coin", "", "Base coin to trade (e.g. BTC, SOL)")
+	pair := flag.String("pair", "", "Trading pair (e.g. ETH/BTC, BTC/USD, SUNDOG/USD)")
 	orderFlag := flag.Bool("order", false, "Place actual orders (default: false)")
 	untradeable := flag.Bool("untradeable", false, "Place orders at untradeable prices (orders won't be executed - close them manually)")
 	volume := flag.Float64("volume", 0.0, "Base coin volume to trade")
@@ -52,17 +53,31 @@ func main() {
 	flag.Parse()
 
 	// Check if required flags are set
-	if *baseCoin == "" || *volume == 0.0 {
-		fmt.Println("Error: -coin flag is required")
-		fmt.Println("Usage: go run cmd/trader/main.go -coin <COIN> -volume <AMOUNT> [-order] [-untradeable]")
+	if *pair == "" || *volume == 0.0 {
+		fmt.Println("Error: -pair and -volume flags are required")
+		fmt.Println("Usage: go run cmd/trader/main.go -pair <PAIR> -volume <AMOUNT> [-order] [-untradeable]")
 		fmt.Println("\nFlags:")
-		fmt.Println("  -coin <COIN>    Base coin to trade (e.g. BTC, SOL)")
-		fmt.Println("  -order         Place actual orders (default: false)")
-		fmt.Println("  -untradeable   Place orders at untradeable prices (orders won't be executed - close them manually)")
+		fmt.Println("  -pair <PAIR>    Trading pair (e.g. ETH/BTC, BTC/USD, SUNDOG/USD)")
+		fmt.Println("  -volume <AMOUNT> Base coin volume to trade")
+		fmt.Println("  -order          Place actual orders (default: false)")
+		fmt.Println("  -untradeable    Place orders at untradeable prices (orders won't be executed - close them manually)")
 		os.Exit(1)
 	}
 
-	fmt.Printf("\nTrading %s/USD\n", *baseCoin)
+	// Parse the trading pair
+	parts := strings.Split(*pair, "/")
+	if len(parts) != 2 {
+		fmt.Println("Error: -pair must be in format BASE/QUOTE (e.g. ETH/BTC, BTC/USD)")
+		fmt.Println("Examples:")
+		fmt.Println("  -pair BTC/USD")
+		fmt.Println("  -pair ETH/BTC")
+		fmt.Println("  -pair SUNDOG/USD")
+		os.Exit(1)
+	}
+	baseCoin := parts[0]
+	quoteCoin := parts[1]
+
+	fmt.Printf("\nTrading %s/%s\n", baseCoin, quoteCoin)
 	fmt.Println("Traded volume:", *volume)
 	if *untradeable {
 		fmt.Println("Running in untradeable mode (orders will be placed at extreme prices)")
@@ -101,20 +116,20 @@ func main() {
 	fmt.Println("Account balance:")
 	fmt.Println(string(balanceBody))
 
-	// Get spread boundary for base coin
-	spreadInfo, err := kraken.GetTickerInfo(*baseCoin)
+	// Get spread boundary for trading pair
+	spreadInfo, err := kraken.GetTickerInfo(baseCoin, quoteCoin)
 	if err != nil {
 		fmt.Println("Error getting spread boundary:", err)
 		os.Exit(1)
 	}
 
 	// Get OHLC data for price comparison. Hard cap on 8 hours
-	if err := kraken.GetOHLCData(*baseCoin, 4*time.Hour); err != nil {
+	if err := kraken.GetOHLCData(baseCoin, quoteCoin, 4*time.Hour); err != nil {
 		fmt.Printf("Error getting OHLC data: %v\n", err)
 	}
 
-	// Some asset codes differ submited on CLI differ from those recognized by Kraken.
-	baseCoinBalanceCode, err := kraken.KrakenAssetCode(*baseCoin)
+	// Some asset codes differ submitted on CLI from those recognized by Kraken
+	baseCoinBalanceCode, err := kraken.KrakenAssetCode(baseCoin)
 	if err != nil {
 		fmt.Printf("Error getting Kraken asset code: %v\n", err)
 		os.Exit(1)
@@ -126,26 +141,32 @@ func main() {
 		fmt.Printf("Error getting %s balance: %v\n", baseCoinBalanceCode, err)
 		os.Exit(1)
 	}
-	fmt.Printf("\nAvailable %s: %.8f\n", baseCoinBalanceCode, baseBalance.Available)
+	fmt.Printf("\nAvailable %s: %.8f\n", baseCoin, baseBalance.Available)
 
 	if baseBalance.Available < *volume {
 		fmt.Printf("\nInsufficient %s balance (have: %.8f, need: %.8f)\n",
-			*baseCoin, baseBalance.Available, *volume)
+			baseCoin, baseBalance.Available, *volume)
 		os.Exit(1)
 	}
 
-	// Check USD balance
-	usdBalance, err := kraken.GetBalance(balanceBody, "ZUSD")
+	// Check quote currency balance (e.g., USD, BTC, ETH)
+	quoteCoinBalanceCode, err := kraken.KrakenAssetCode(quoteCoin)
 	if err != nil {
-		fmt.Printf("Error getting USD balance: %v\n", err)
+		fmt.Printf("Error getting Kraken asset code for %s: %v\n", quoteCoin, err)
 		os.Exit(1)
 	}
-	fmt.Printf("Available USD: %.2f\n", usdBalance.Available)
 
-	requiredUSD := *volume * spreadInfo.BidPrice
-	if usdBalance.Available < requiredUSD {
-		fmt.Printf("\nInsufficient USD balance (have: %.2f, need: %.2f)\n",
-			usdBalance.Available, requiredUSD)
+	quoteBalance, err := kraken.GetBalance(balanceBody, quoteCoinBalanceCode)
+	if err != nil {
+		fmt.Printf("Error getting %s balance: %v\n", quoteCoin, err)
+		os.Exit(1)
+	}
+	fmt.Printf("Available %s: %.8f\n", quoteCoin, quoteBalance.Available)
+
+	requiredQuote := *volume * spreadInfo.BidPrice
+	if quoteBalance.Available < requiredQuote {
+		fmt.Printf("\nInsufficient %s balance (have: %.8f, need: %.8f)\n",
+			quoteCoin, quoteBalance.Available, requiredQuote)
 		os.Exit(1)
 	}
 
@@ -161,7 +182,7 @@ func main() {
 
 			// Check 1: Spread percentage
 			var err error
-			spreadInfo, err = kraken.GetTickerInfo(*baseCoin)
+			spreadInfo, err = kraken.GetTickerInfo(baseCoin, quoteCoin)
 			if err != nil {
 				fmt.Println("Error getting spread info:", err)
 				os.Exit(1)
@@ -171,15 +192,15 @@ func main() {
 			fmt.Printf("Current spread: %.4f%% (min required: %.2f%%)\n", spreadPercent, minSpreadPercent)
 
 			// Check 2: 24h volume
-			volume24h, err := kraken.Get24hVolume(*baseCoin)
+			volume24h, err := kraken.Get24hVolume(baseCoin, quoteCoin)
 			if err != nil {
 				fmt.Printf("Error getting 24h volume: %v\n", err)
 				os.Exit(1)
 			}
-			fmt.Printf("24h Volume: %.2f USD (min required: %.2f USD)\n", volume24h, minVolume24h)
+			fmt.Printf("24h Volume: %.2f %s (min required: %.2f %s)\n", volume24h, quoteCoin, minVolume24h, quoteCoin)
 
 			// Check 3: ADX indicator
-			adx, err := kraken.GetADXInfo(*baseCoin, adxPeriod)
+			adx, err := kraken.GetADXInfo(baseCoin, quoteCoin, adxPeriod)
 			if err != nil {
 				fmt.Printf("Error calculating ADX: %v\n", err)
 				os.Exit(1)
@@ -197,10 +218,10 @@ func main() {
 			}
 
 			if volume24h < minVolume24h {
-				fmt.Printf("❌ Volume too low (%.2f < %.2f USD)\n", volume24h, minVolume24h)
+				fmt.Printf("❌ Volume too low (%.2f < %.2f %s)\n", volume24h, minVolume24h, quoteCoin)
 				conditionsMet = false
 			} else {
-				fmt.Printf("✅ Volume OK (%.2f >= %.2f USD)\n", volume24h, minVolume24h)
+				fmt.Printf("✅ Volume OK (%.2f >= %.2f %s)\n", volume24h, minVolume24h, quoteCoin)
 			}
 
 			if adx > maxADX {
@@ -223,7 +244,7 @@ func main() {
 			break
 		}
 
-		buyTxId, sellTxId, estimatedProfit, estimatedPercentGain, err := kraken.PlaceSpreadOrders(*baseCoin, spreadInfo, *volume, *untradeable, spreadAdjustFactor, finalADX, adxPeriod)
+		buyTxId, sellTxId, estimatedProfit, estimatedPercentGain, err := kraken.PlaceSpreadOrders(baseCoin, quoteCoin, spreadInfo, *volume, *untradeable, spreadAdjustFactor, finalADX, adxPeriod)
 		if err != nil {
 			fmt.Printf("Error placing spread orders: %v\n", err)
 			os.Exit(1)
@@ -233,14 +254,14 @@ func main() {
 		for {
 			time.Sleep(10 * time.Second)
 
-			fmt.Printf("\n🟢 BUY %s status check\n", *baseCoin)
+			fmt.Printf("\n🟢 BUY %s/%s status check\n", baseCoin, quoteCoin)
 			buyOrder, err := kraken.CheckOrderStatus(buyTxId)
 			if err != nil {
 				fmt.Printf("Error checking buy order status: %v\n", err)
 				continue
 			}
 
-			fmt.Printf("\n🔴 SELL %s status check\n", *baseCoin)
+			fmt.Printf("\n🔴 SELL %s/%s status check\n", baseCoin, quoteCoin)
 			sellOrder, err := kraken.CheckOrderStatus(sellTxId)
 			if err != nil {
 				fmt.Printf("Error checking sell order status: %v\n", err)
@@ -253,7 +274,7 @@ func main() {
 				fmt.Println("Both buy and sell orders have been successfully executed.")
 
 				// Get current spread information
-				currentSpreadInfo, err := kraken.GetTickerInfo(*baseCoin)
+				currentSpreadInfo, err := kraken.GetTickerInfo(baseCoin, quoteCoin)
 				if err != nil {
 					fmt.Printf("Error getting current spread info: %v\n", err)
 				}
@@ -263,7 +284,7 @@ func main() {
 				spreadPercent := (spread / currentSpreadInfo.BidPrice) * 100
 
 				// Get 24h volume
-				volume24h, err := kraken.Get24hVolume(*baseCoin)
+				volume24h, err := kraken.Get24hVolume(baseCoin, quoteCoin)
 				if err != nil {
 					fmt.Printf("Error getting 24h volume: %v\n", err)
 				}
@@ -282,37 +303,42 @@ func main() {
 				actualPercentGain := ((sellPrice - buyPrice) / buyPrice) * 100
 				netProfit := actualProfit - totalFees
 
-				fmt.Printf("Actual profit: %.2f USD (%.4f%% gain)\n", actualProfit, actualPercentGain)
-				fmt.Printf("Total Fees: %.2f USD (Buy: %.2f, Sell: %.2f)\n", totalFees, buyFee, sellFee)
-				fmt.Printf("Net profit (after fees): %.2f USD\n", netProfit)
+				fmt.Printf("Actual profit: %.2f %s (%.4f%% gain)\n", actualProfit, quoteCoin, actualPercentGain)
+				fmt.Printf("Total Fees: %.2f %s (Buy: %.2f, Sell: %.2f)\n", totalFees, quoteCoin, buyFee, sellFee)
+				fmt.Printf("Net profit (after fees): %.2f %s\n", netProfit, quoteCoin)
 				slackErr := kraken.SendSlackMessage(fmt.Sprintf(
-					"✅ Trade %s/USD executed\n"+
+					"✅ Trade %s/%s executed\n"+
 						"Volume: %.5f\n"+
 						"Buy price: %.6f\n"+
 						"Sell price: %.6f\n"+
-						"Actual profit: %.2f USD (%.4f%% gain)\n"+
-						"Fees: %.2f USD (Buy: %.2f, Sell: %.2f)\n"+
-						"Net profit: %.2f USD\n"+
+						"Actual profit: %.2f %s (%.4f%% gain)\n"+
+						"Fees: %.2f %s (Buy: %.2f, Sell: %.2f)\n"+
+						"Net profit: %.2f %s\n"+
 						"Buy Order ID: %s\n"+
 						"Sell Order ID: %s\n"+
 						"Current spread: %.6f (%.4f%%)\n"+
-						"24h Volume: %.2f USD\n"+
+						"24h Volume: %.2f %s\n"+
 						"ADX(%d) at entry: %.2f",
-					*baseCoin,
+					baseCoin,
+					quoteCoin,
 					*volume,
 					buyPrice,
 					sellPrice,
 					actualProfit,
+					quoteCoin,
 					actualPercentGain,
 					totalFees,
+					quoteCoin,
 					buyFee,
 					sellFee,
 					netProfit,
+					quoteCoin,
 					buyTxId,
 					sellTxId,
 					spread,
 					spreadPercent,
 					volume24h,
+					quoteCoin,
 					adxPeriod,
 					finalADX,
 				))
@@ -325,7 +351,7 @@ func main() {
 			if buyOrder.Status == "canceled" && sellOrder.Status == "canceled" {
 				fmt.Println("\n=== TRADE CANCELED! ===")
 				fmt.Println("Both buy and sell orders have been canceled.")
-				fmt.Printf("Unrealised Profit: %.2f USD (Gain: %.4f%%)\n", estimatedProfit, estimatedPercentGain)
+				fmt.Printf("Unrealised Profit: %.2f %s (Gain: %.4f%%)\n", estimatedProfit, quoteCoin, estimatedPercentGain)
 				os.Exit(0)
 			}
 		}

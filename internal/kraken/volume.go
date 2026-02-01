@@ -21,11 +21,11 @@ type VolumeResult struct {
 	Bid []string `json:"b"` // Bid price
 }
 
-// Get24hVolume returns the 24-hour trading volume in USD for a given coin
+// Get24hVolume returns the 24-hour trading volume in quote currency for a given trading pair
 // It uses the last 24h volume (Vol[1]) from Kraken's ticker API and multiplies it by the bid price
-func Get24hVolume(coin string) (float64, error) {
-	// Convert coin to Kraken pair format (e.g., "SUNDOG" -> "SUNDOG/USD")
-	pair := coin + "/USD"
+func Get24hVolume(baseCoin, quoteCoin string) (float64, error) {
+	// Convert to Kraken pair format (e.g., "ETH", "BTC" -> "ETH/BTC")
+	pair := baseCoin + "/" + quoteCoin
 
 	// Get ticker data from public API
 	url := fmt.Sprintf("https://api.kraken.com/0/public/Ticker?pair=%s", pair)
@@ -71,8 +71,8 @@ func Get24hVolume(coin string) (float64, error) {
 		return 0, fmt.Errorf("error parsing bid price: %v", err)
 	}
 
-	// Calculate USD volume using bid price
-	usdVolume := coinVolume * bidPrice
+	// Calculate volume in quote currency using bid price
+	quoteVolume := coinVolume * bidPrice
 
-	return usdVolume, nil
+	return quoteVolume, nil
 }

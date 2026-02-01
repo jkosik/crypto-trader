@@ -6,15 +6,15 @@ import (
 	"math"
 )
 
-// CalculateADX calculates the Average Directional Index (ADX) for a given coin
+// CalculateADX calculates the Average Directional Index (ADX) for a given trading pair
 // ADX measures trend strength: 0-20 = weak/no trend, 20-40 = strong trend, 40+ = very strong trend
 // Returns ADX value and error if any
-func CalculateADX(coin string, period int) (float64, error) {
+func CalculateADX(baseCoin, quoteCoin string, period int) (float64, error) {
 	// ADX requires at least 2 * period + 1 candles for accurate calculation
 	candlesNeeded := 2*period + 15 // Extra buffer for smoothing
 
 	// Get OHLC data from Kraken (using 1-minute candles)
-	pair := coin + "/USD"
+	pair := baseCoin + "/" + quoteCoin
 	url := fmt.Sprintf("https://api.kraken.com/0/public/OHLC?pair=%s&interval=1", pair)
 
 	body, err := MakePublicRequest(url, "GET")
@@ -165,9 +165,9 @@ func wilderSmooth(data []float64, period int) []float64 {
 	return smoothed
 }
 
-// GetADXInfo retrieves and prints ADX information for a given coin
-func GetADXInfo(coin string, period int) (float64, error) {
-	adx, err := CalculateADX(coin, period)
+// GetADXInfo retrieves and prints ADX information for a given trading pair
+func GetADXInfo(baseCoin, quoteCoin string, period int) (float64, error) {
+	adx, err := CalculateADX(baseCoin, quoteCoin, period)
 	if err != nil {
 		return 0, fmt.Errorf("error calculating ADX: %v", err)
 	}
@@ -186,7 +186,7 @@ func GetADXInfo(coin string, period int) (float64, error) {
 		trendStrength = "Extremely Strong Trend"
 	}
 
-	fmt.Printf("\n%s/USD ADX(%d) Indicator:\n", coin, period)
+	fmt.Printf("\n%s/%s ADX(%d) Indicator:\n", baseCoin, quoteCoin, period)
 	fmt.Printf("ADX Value: %.2f\n", adx)
 	fmt.Printf("Interpretation: %s\n", trendStrength)
 

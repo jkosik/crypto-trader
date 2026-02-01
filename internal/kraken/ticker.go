@@ -39,10 +39,10 @@ type SpreadInfo struct {
 	LowPrice  float64
 }
 
-// GetTickerInfo retrieves the current ticker information for a given coin
-func GetTickerInfo(coin string) (*SpreadInfo, error) {
-	// Convert coin to Kraken pair format (e.g., "SUNDOG" -> "SUNDOG/USD")
-	pair := coin + "/USD"
+// GetTickerInfo retrieves the current ticker information for a given trading pair
+func GetTickerInfo(baseCoin, quoteCoin string) (*SpreadInfo, error) {
+	// Convert to Kraken pair format (e.g., "ETH", "BTC" -> "ETH/BTC")
+	pair := baseCoin + "/" + quoteCoin
 	// Get ticker data from public API
 	url := fmt.Sprintf("https://api.kraken.com/0/public/Ticker?pair=%s", pair)
 

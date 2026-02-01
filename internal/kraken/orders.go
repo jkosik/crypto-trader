@@ -53,7 +53,7 @@ type OpenOrdersResponse struct {
 }
 
 // PlaceLimitOrder places a limit order on Kraken
-func PlaceLimitOrder(coin string, price float64, volume float64, isBuy bool, untradeable bool) (string, error) {
+func PlaceLimitOrder(baseCoin, quoteCoin string, price float64, volume float64, isBuy bool, untradeable bool) (string, error) {
 	urlBase := "https://api.kraken.com"
 	urlPath := "/0/private/AddOrder"
 
@@ -84,10 +84,10 @@ func PlaceLimitOrder(coin string, price float64, volume float64, isBuy bool, unt
 		"nonce": "%d",
 		"ordertype": "limit",
 		"type": "%s",
-		"pair": "%s/USD",
+		"pair": "%s/%s",
 		"price": %.6f,
 		"volume": "%.5f"
-	}`, nonce, orderType, coin, price, volume)
+	}`, nonce, orderType, baseCoin, quoteCoin, price, volume)
 
 	// Debug: Print the payload
 	// fmt.Printf("[DEBUG] Payload: %s\n", payload)
@@ -138,7 +138,7 @@ func PlaceLimitOrder(coin string, price float64, volume float64, isBuy bool, unt
 // - 2.0 = double the original spread
 // - 3.0 = triple the original spread
 // Values > 1.0 extend the spread beyond market prices
-func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untradeable bool, spreadAdjustFactor float64, adx float64, adxPeriod int) (string, string, float64, float64, error) {
+func PlaceSpreadOrders(baseCoin, quoteCoin string, spreadInfo *SpreadInfo, volume float64, untradeable bool, spreadAdjustFactor float64, adx float64, adxPeriod int) (string, string, float64, float64, error) {
 	// Ensure spreadAdjustFactor is non-negative
 	if spreadAdjustFactor < 0 {
 		spreadAdjustFactor = 0
@@ -187,10 +187,11 @@ func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untr
 	if newSellPrice <= newBuyPrice {
 		// Send Slack notification about the error
 		slackErr := SendSlackMessage(fmt.Sprintf(
-			"❌ Trade %s/USD cancelled\n"+
+			"❌ Trade %s/%s cancelled\n"+
 				"Reason: Adjusted prices are too close (buy: %.6f, sell: %.6f)\n"+
 				"spreadAdjustFactor: %.2f\n",
-			coin,
+			baseCoin,
+			quoteCoin,
 			newBuyPrice,
 			newSellPrice,
 			spreadAdjustFactor,
@@ -212,7 +213,7 @@ func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untr
 	newSpread := newSellPrice - newBuyPrice
 
 	// Print spread information
-	fmt.Printf("\n🔄 Placing spread orders for %s/USD:\n", coin)
+	fmt.Printf("\n🔄 Placing spread orders for %s/%s:\n", baseCoin, quoteCoin)
 	fmt.Printf("Volume: %.5f\n", volume)
 	fmt.Printf("Market bid price: %.6f\n", spreadInfo.BidPrice)
 	fmt.Printf("Market ask price: %.6f\n", spreadInfo.AskPrice)
@@ -223,16 +224,16 @@ func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untr
 	fmt.Printf("Adjusted buy price: %.6f\n", newBuyPrice)
 	fmt.Printf("Adjusted sell price: %.6f\n", newSellPrice)
 	fmt.Printf("Adjusted spread: %.6f (%.4f%% of market spread)\n", newSpread, (newSpread/spreadInfo.Spread)*100)
-	fmt.Printf("Estimated profit: %.2f USD (%.4f%% gain)\n", estimatedProfit, estimatedPercentGain)
+	fmt.Printf("Estimated profit: %.2f %s (%.4f%% gain)\n", estimatedProfit, quoteCoin, estimatedPercentGain)
 
 	// Place buy order at the new buy price
-	buyTxId, err := PlaceLimitOrder(coin, newBuyPrice, volume, true, untradeable)
+	buyTxId, err := PlaceLimitOrder(baseCoin, quoteCoin, newBuyPrice, volume, true, untradeable)
 	if err != nil {
 		return "", "", 0, 0, fmt.Errorf("error placing buy order: %v", err)
 	}
 
 	// Place sell order at the new sell price
-	sellTxId, err := PlaceLimitOrder(coin, newSellPrice, volume, false, untradeable)
+	sellTxId, err := PlaceLimitOrder(baseCoin, quoteCoin, newSellPrice, volume, false, untradeable)
 	if err != nil {
 		return "", "", 0, 0, fmt.Errorf("error placing sell order: %v", err)
 	}
@@ -243,7 +244,7 @@ func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untr
 
 	// Send Slack notification about placed orders
 	slackErr := SendSlackMessage(fmt.Sprintf(
-		"🔄 Placing spread orders for %s/USD\n"+
+		"🔄 Placing spread orders for %s/%s\n"+
 			"Volume: %.5f\n"+
 			"Market bid price: %.6f\n"+
 			"Market ask price: %.6f\n"+
@@ -254,10 +255,11 @@ func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untr
 			"Adjusted buy price: %.6f\n"+
 			"Adjusted sell price: %.6f\n"+
 			"Adjusted spread: %.6f (%.2f%% of market)\n"+
-			"Estimated profit: %.2f USD (%.4f%% gain)\n"+
+			"Estimated profit: %.2f %s (%.4f%% gain)\n"+
 			"Buy Order ID: %s\n"+
 			"Sell Order ID: %s",
-		coin,
+		baseCoin,
+		quoteCoin,
 		volume,
 		spreadInfo.BidPrice,
 		spreadInfo.AskPrice,
@@ -272,6 +274,7 @@ func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untr
 		newSpread,
 		(newSpread/spreadInfo.Spread)*100,
 		estimatedProfit,
+		quoteCoin,
 		estimatedPercentGain,
 		buyTxId,
 		sellTxId,
@@ -355,7 +358,7 @@ func parseFloat(s string) float64 {
 }
 
 // GetOpenOrders retrieves all open orders for a given trading pair
-func GetOpenOrders(coin string) (map[string]OrderStatus, error) {
+func GetOpenOrders(baseCoin, quoteCoin string) (map[string]OrderStatus, error) {
 	urlBase := "https://api.kraken.com"
 	urlPath := "/0/private/OpenOrders"
 
@@ -402,9 +405,9 @@ func GetOpenOrders(coin string) (map[string]OrderStatus, error) {
 	// 	}
 	// }
 
-	// Filter orders for the specific coin
+	// Filter orders for the specific trading pair
 	filteredOrders := make(map[string]OrderStatus)
-	pair := coin + "USD"
+	pair := baseCoin + quoteCoin
 	for txId, order := range response.Result.Open {
 		// Skip empty orders
 		if order.Status == "" || order.Descr.Order == "" {

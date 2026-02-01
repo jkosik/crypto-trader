@@ -57,8 +57,15 @@ func getCoinBalance(body []byte, coin string) (string, error) {
 // KrakenAssetCode converts standard coin codes to Kraken's format
 func KrakenAssetCode(standardCode string) (string, error) {
 	hardcodedMap := map[string]string{
-		"BTC":    "XXBT",
-		"ETH":    "XETH",
+		// Major currencies (quote currencies)
+		"BTC":  "XXBT",
+		"ETH":  "XETH",
+		"USD":  "ZUSD",
+		"USDT": "USDT",
+		"USDC": "USDC",
+		"EUR":  "ZEUR",
+
+		// Altcoins (commonly traded base currencies)
 		"SOL":    "SOL.F",
 		"SUNDOG": "SUNDOG",
 		"TRUMP":  "TRUMP",
