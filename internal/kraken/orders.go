@@ -53,7 +53,7 @@ type OpenOrdersResponse struct {
 }
 
 // PlaceLimitOrder places a limit order on Kraken
-func PlaceLimitOrder(baseCoin, quoteCoin string, price float64, volume float64, isBuy bool, untradeable bool) (string, error) {
+func PlaceLimitOrder(baseCoin, quoteCoin string, price float64, volume float64, isBuy bool, untradeable bool, decimals int) (string, error) {
 	urlBase := "https://api.kraken.com"
 	urlPath := "/0/private/AddOrder"
 
@@ -68,14 +68,19 @@ func PlaceLimitOrder(baseCoin, quoteCoin string, price float64, volume float64, 
 
 	// In untradeable mode, use extreme prices to prevent order filling. Estimated profit still shows the spread size.
 	if untradeable {
+		multiplier := math.Pow10(decimals)
 		if isBuy {
 			fmt.Printf("\nOriginal buy price: %.6f", price)
 			price = price * 0.1 // 90% below market for buy orders
-			fmt.Printf("\nSetting untradeable buy price: %.6f\n", price)
+			// Round to maintain decimal limit
+			price = math.Round(price*multiplier) / multiplier
+			fmt.Printf("\nSetting untradeable buy price: %.*f\n", decimals, price)
 		} else {
 			fmt.Printf("\nOriginal sell price: %.6f", price)
 			price = price * 10.0 // 900% above market for sell orders
-			fmt.Printf("\nSetting untradeable sell price: %.6f\n", price)
+			// Round to maintain decimal limit
+			price = math.Round(price*multiplier) / multiplier
+			fmt.Printf("\nSetting untradeable sell price: %.*f\n", decimals, price)
 		}
 	}
 
@@ -183,6 +188,13 @@ func PlaceSpreadOrders(baseCoin, quoteCoin string, spreadInfo *SpreadInfo, volum
 	newBuyPrice = math.Round(newBuyPrice*multiplier) / multiplier
 	newSellPrice = math.Round(newSellPrice*multiplier) / multiplier
 
+	// Warn if adjusted prices equal market prices (no narrowing happened due to rounding)
+	if newBuyPrice == spreadInfo.BidPrice && newSellPrice == spreadInfo.AskPrice {
+		fmt.Printf("\n⚠️  WARNING: Adjusted prices equal market prices (no spread adjustment due to rounding)\n")
+		fmt.Printf("   Market spread (%.8f) is too tight for factor %.2f with %d decimals\n", spreadInfo.Spread, spreadAdjustFactor, decimals)
+		fmt.Printf("   Consider using factor 1.0 (full spread) or higher for this pair\n\n")
+	}
+
 	// Check if adjusted prices are too close or equal (only happens with factor = 0)
 	if newSellPrice <= newBuyPrice {
 		// Send Slack notification about the error
@@ -227,13 +239,13 @@ func PlaceSpreadOrders(baseCoin, quoteCoin string, spreadInfo *SpreadInfo, volum
 	fmt.Printf("Estimated profit: %.2f %s (%.4f%% gain)\n", estimatedProfit, quoteCoin, estimatedPercentGain)
 
 	// Place buy order at the new buy price
-	buyTxId, err := PlaceLimitOrder(baseCoin, quoteCoin, newBuyPrice, volume, true, untradeable)
+	buyTxId, err := PlaceLimitOrder(baseCoin, quoteCoin, newBuyPrice, volume, true, untradeable, decimals)
 	if err != nil {
 		return "", "", 0, 0, fmt.Errorf("error placing buy order: %v", err)
 	}
 
 	// Place sell order at the new sell price
-	sellTxId, err := PlaceLimitOrder(baseCoin, quoteCoin, newSellPrice, volume, false, untradeable)
+	sellTxId, err := PlaceLimitOrder(baseCoin, quoteCoin, newSellPrice, volume, false, untradeable, decimals)
 	if err != nil {
 		return "", "", 0, 0, fmt.Errorf("error placing sell order: %v", err)
 	}
