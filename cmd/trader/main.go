@@ -13,8 +13,8 @@ import (
 
 const (
 	// Trading conditions
-	minSpreadPercent   = 0        // Minimum spread percentage required to place orders
-	minVolume24h       = 100000.0 // Minimum 24h volume in USD required to place orders
+	minSpreadPercent   = 0.0      // Minimum spread percentage required to place orders (0.0 = accept any spread)
+	minVolume24h       = 100000.0 // Minimum 24h MARKET volume in quote currency (liquidity filter)
 	maxADX             = 20.0     // Maximum ADX value (0-20 = weak trend, ideal for spread trading)
 	adxPeriod          = 14       // ADX calculation period (standard is 14)
 	spreadAdjustFactor = 0.5      // Spread adjustment: 0=no spread, 0.5=half spread, 1=full spread, 2=double spread, etc.
@@ -191,13 +191,13 @@ func main() {
 			spreadPercent := (spreadInfo.Spread / spreadInfo.BidPrice) * 100
 			fmt.Printf("Current spread: %.4f%% (min required: %.2f%%)\n", spreadPercent, minSpreadPercent)
 
-			// Check 2: 24h volume
+			// Check 2: 24h market volume (liquidity check)
 			volume24h, err := kraken.Get24hVolume(baseCoin, quoteCoin)
 			if err != nil {
-				fmt.Printf("Error getting 24h volume: %v\n", err)
+				fmt.Printf("Error getting 24h market volume: %v\n", err)
 				os.Exit(1)
 			}
-			fmt.Printf("24h Volume: %.2f %s (min required: %.2f %s)\n", volume24h, quoteCoin, minVolume24h, quoteCoin)
+			fmt.Printf("24h Market Volume: %.2f %s (min required: %.2f %s for liquidity)\n", volume24h, quoteCoin, minVolume24h, quoteCoin)
 
 			// Check 3: ADX indicator
 			adx, err := kraken.GetADXInfo(baseCoin, quoteCoin, adxPeriod)
@@ -218,10 +218,10 @@ func main() {
 			}
 
 			if volume24h < minVolume24h {
-				fmt.Printf("❌ Volume too low (%.2f < %.2f %s)\n", volume24h, minVolume24h, quoteCoin)
+				fmt.Printf("❌ Market volume too low (%.2f < %.2f %s) - insufficient liquidity\n", volume24h, minVolume24h, quoteCoin)
 				conditionsMet = false
 			} else {
-				fmt.Printf("✅ Volume OK (%.2f >= %.2f %s)\n", volume24h, minVolume24h, quoteCoin)
+				fmt.Printf("✅ Market volume OK (%.2f >= %.2f %s) - sufficient liquidity\n", volume24h, minVolume24h, quoteCoin)
 			}
 
 			if adx > maxADX {
