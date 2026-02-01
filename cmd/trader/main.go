@@ -305,17 +305,17 @@ func main() {
 				actualPercentGain := ((sellPrice - buyPrice) / buyPrice) * 100
 				netProfit := actualProfit - totalFees
 
-				fmt.Printf("Actual profit: %.8f %s (%.4f%% gain)\n", actualProfit, quoteCoin, actualPercentGain)
-				fmt.Printf("Total Fees: %.8f %s (Buy: %.8f, Sell: %.8f)\n", totalFees, quoteCoin, buyFee, sellFee)
-				fmt.Printf("Net profit (after fees): %.8f %s\n", netProfit, quoteCoin)
+				fmt.Printf("Actual profit: %s (%.4f%% gain)\n", kraken.FormatProfitWithUSD(actualProfit, quoteCoin), actualPercentGain)
+				fmt.Printf("Total Fees: %s (Buy: %.8f, Sell: %.8f %s)\n", kraken.FormatProfitWithUSD(totalFees, quoteCoin), buyFee, sellFee, quoteCoin)
+				fmt.Printf("Net profit (after fees): %s\n", kraken.FormatProfitWithUSD(netProfit, quoteCoin))
 				slackErr := kraken.SendSlackMessage(fmt.Sprintf(
 					"✅ Trade %s/%s executed\n"+
 						"Volume: %.5f\n"+
 						"Buy price: %.6f\n"+
 						"Sell price: %.6f\n"+
-						"Actual profit: %.8f %s (%.4f%% gain)\n"+
-						"Fees: %.8f %s (Buy: %.8f, Sell: %.8f)\n"+
-						"Net profit: %.8f %s\n"+
+						"Actual profit: %s (%.4f%% gain)\n"+
+						"Fees: %s (Buy: %.8f, Sell: %.8f %s)\n"+
+						"Net profit: %s\n"+
 						"Buy Order ID: %s\n"+
 						"Sell Order ID: %s\n"+
 						"Current spread: %.6f (%.4f%%)\n"+
@@ -326,15 +326,13 @@ func main() {
 					*volume,
 					buyPrice,
 					sellPrice,
-					actualProfit,
-					quoteCoin,
+					kraken.FormatProfitWithUSD(actualProfit, quoteCoin),
 					actualPercentGain,
-					totalFees,
-					quoteCoin,
+					kraken.FormatProfitWithUSD(totalFees, quoteCoin),
 					buyFee,
 					sellFee,
-					netProfit,
 					quoteCoin,
+					kraken.FormatProfitWithUSD(netProfit, quoteCoin),
 					buyTxId,
 					sellTxId,
 					spread,
