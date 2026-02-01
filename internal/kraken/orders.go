@@ -177,6 +177,29 @@ func PlaceSpreadOrders(baseCoin, quoteCoin string, spreadInfo *SpreadInfo, volum
 	fmt.Printf("Ask: %s (%d decimals)\n", askStr, askDecimals)
 	fmt.Printf("Using %d decimal places\n", decimals)
 
+	// Check if spreadAdjustFactor will produce meaningful results with this decimal precision
+	// Minimum representable change is 1 unit at the decimal place (e.g., 0.00001 for 5 decimals)
+	minPrecision := math.Pow10(-decimals)
+	adjustedHalfSpread := halfSpread * spreadAdjustFactor
+	
+	// For the adjustment to be meaningful, it should be at least 0.5 × minPrecision
+	// (so after rounding, there's at least a 1-unit change from center)
+	minMeaningfulAdjustment := 0.5 * minPrecision
+	
+	if adjustedHalfSpread < minMeaningfulAdjustment && spreadAdjustFactor > 0 {
+		fmt.Printf("\n⚠️  WARNING: spreadAdjustFactor %.2f may not produce meaningful results\n", spreadAdjustFactor)
+		fmt.Printf("   Half spread: %.8f, Adjusted: %.8f, Min precision: %.8f\n", halfSpread, adjustedHalfSpread, minPrecision)
+		fmt.Printf("   Prices will likely round to center (%.6f) or market prices\n", centerPrice)
+		
+		// Suggest minimum working factor
+		minWorkingFactor := minMeaningfulAdjustment / halfSpread
+		if minWorkingFactor < 1.0 {
+			fmt.Printf("   Suggested minimum factor for narrowing: %.1f (or use 1.0 for full spread)\n\n", math.Ceil(minWorkingFactor*10)/10)
+		} else {
+			fmt.Printf("   Suggested: Use factor 1.0 (full spread) or higher\n\n")
+		}
+	}
+
 	// Calculate new buy and sell prices based on the adjust factor
 	// newBuyPrice = center - (halfSpread * factor)
 	// newSellPrice = center + (halfSpread * factor)
@@ -188,11 +211,37 @@ func PlaceSpreadOrders(baseCoin, quoteCoin string, spreadInfo *SpreadInfo, volum
 	newBuyPrice = math.Round(newBuyPrice*multiplier) / multiplier
 	newSellPrice = math.Round(newSellPrice*multiplier) / multiplier
 
-	// Warn if adjusted prices equal market prices (no narrowing happened due to rounding)
-	if newBuyPrice == spreadInfo.BidPrice && newSellPrice == spreadInfo.AskPrice {
-		fmt.Printf("\n⚠️  WARNING: Adjusted prices equal market prices (no spread adjustment due to rounding)\n")
-		fmt.Printf("   Market spread (%.8f) is too tight for factor %.2f with %d decimals\n", spreadInfo.Spread, spreadAdjustFactor, decimals)
-		fmt.Printf("   Consider using factor 1.0 (full spread) or higher for this pair\n\n")
+	// Warn if adjusted prices equal market prices due to rounding
+	if newBuyPrice == spreadInfo.BidPrice && newSellPrice == spreadInfo.AskPrice && spreadAdjustFactor != 1.0 {
+		marketSpreadPercent := (spreadInfo.Spread / centerPrice) * 100
+		intendedSpreadPercent := marketSpreadPercent * spreadAdjustFactor
+		
+		if spreadAdjustFactor < 1.0 {
+			// Narrowing failed - got full spread instead of narrower
+			fmt.Printf("\nℹ️  INFO: Adjusted prices rounded to market prices (narrowing ineffective)\n")
+			fmt.Printf("   Intended:  Buy %.6f, Sell %.6f (factor %.2f)\n", 
+				centerPrice-(halfSpread*spreadAdjustFactor), 
+				centerPrice+(halfSpread*spreadAdjustFactor), 
+				spreadAdjustFactor)
+			fmt.Printf("   After rounding to %d decimals: Buy %.6f, Sell %.6f (factor 1.0)\n", decimals, newBuyPrice, newSellPrice)
+			fmt.Printf("   Result: MORE profit than intended (%.4f%% vs %.4f%%), no risk\n\n", 
+				marketSpreadPercent, 
+				intendedSpreadPercent)
+		} else {
+			// Extension failed - got market spread instead of wider
+			fmt.Printf("\n⚠️  WARNING: Adjusted prices rounded to market prices (extension ineffective)\n")
+			fmt.Printf("   Intended:  Buy %.6f, Sell %.6f (factor %.2f)\n", 
+				centerPrice-(halfSpread*spreadAdjustFactor), 
+				centerPrice+(halfSpread*spreadAdjustFactor), 
+				spreadAdjustFactor)
+			fmt.Printf("   After rounding to %d decimals: Buy %.6f, Sell %.6f (factor 1.0)\n", decimals, newBuyPrice, newSellPrice)
+			fmt.Printf("   Result: LESS profit than intended (%.4f%% vs %.4f%%)\n", 
+				marketSpreadPercent, 
+				intendedSpreadPercent)
+			fmt.Printf("   For %.0fx spread, use factor %.1f or higher\n\n", 
+				math.Ceil(spreadAdjustFactor), 
+				math.Ceil(spreadAdjustFactor*2)/2)
+		}
 	}
 
 	// Check if adjusted prices are too close or equal (only happens with factor = 0)
