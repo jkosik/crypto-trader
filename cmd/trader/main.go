@@ -13,11 +13,12 @@ import (
 
 const (
 	// Trading conditions
-	minSpreadPercent   = 0.0      // Minimum spread percentage required to place orders (0.0 = accept any spread)
-	minVolume24h       = 100000.0 // Minimum 24h MARKET volume in quote currency (liquidity filter)
-	maxADX             = 20.0     // Maximum ADX value (0-20 = weak trend, ideal for spread trading)
-	adxPeriod          = 14       // ADX calculation period (standard is 14)
-	spreadAdjustFactor = 0.5      // Spread adjustment: 0=no spread, 0.5=half spread, 1=full spread, 2=double spread, etc.
+	minSpreadPercent = 0.0  // Minimum spread percentage required to place orders (0.0 = accept any spread)
+	minVolume24h     = 10.0 // Minimum 24h trading pair volume (measured in QUOTE currency: BTC for ETH/BTC, USD for BTC/USD)
+	// This is a liquidity filter: for ETH/BTC use 100, for BTC/USD use 1000000, for altcoins use 1000
+	maxADX             = 20.0 // Maximum ADX value (0-20 = weak trend, ideal for spread trading)
+	adxPeriod          = 14   // ADX calculation period (standard is 14)
+	spreadAdjustFactor = 0.5  // Spread adjustment: 0=no spread, 0.5=half spread, 1=full spread, 2=double spread, etc.
 )
 
 // Kraken crypto trading bot that executes spread trades on specified cryptocurrency pairs.
@@ -191,13 +192,14 @@ func main() {
 			spreadPercent := (spreadInfo.Spread / spreadInfo.BidPrice) * 100
 			fmt.Printf("Current spread: %.4f%% (min required: %.2f%%)\n", spreadPercent, minSpreadPercent)
 
-			// Check 2: 24h market volume (liquidity check)
+			// Check 2: 24h trading pair volume (liquidity check)
+			// Note: Volume is measured in quote currency (BTC for ETH/BTC, USD for BTC/USD, etc.)
 			volume24h, err := kraken.Get24hVolume(baseCoin, quoteCoin)
 			if err != nil {
-				fmt.Printf("Error getting 24h market volume: %v\n", err)
+				fmt.Printf("Error getting 24h volume: %v\n", err)
 				os.Exit(1)
 			}
-			fmt.Printf("24h Market Volume: %.2f %s (min required: %.2f %s for liquidity)\n", volume24h, quoteCoin, minVolume24h, quoteCoin)
+			fmt.Printf("24h %s/%s Volume: %.2f %s (min required: %.2f %s)\n", baseCoin, quoteCoin, volume24h, quoteCoin, minVolume24h, quoteCoin)
 
 			// Check 3: ADX indicator
 			adx, err := kraken.GetADXInfo(baseCoin, quoteCoin, adxPeriod)
@@ -218,10 +220,10 @@ func main() {
 			}
 
 			if volume24h < minVolume24h {
-				fmt.Printf("❌ Market volume too low (%.2f < %.2f %s) - insufficient liquidity\n", volume24h, minVolume24h, quoteCoin)
+				fmt.Printf("❌ %s/%s volume too low (%.2f < %.2f %s) - insufficient pair liquidity\n", baseCoin, quoteCoin, volume24h, minVolume24h, quoteCoin)
 				conditionsMet = false
 			} else {
-				fmt.Printf("✅ Market volume OK (%.2f >= %.2f %s) - sufficient liquidity\n", volume24h, minVolume24h, quoteCoin)
+				fmt.Printf("✅ %s/%s volume OK (%.2f >= %.2f %s) - sufficient pair liquidity\n", baseCoin, quoteCoin, volume24h, minVolume24h, quoteCoin)
 			}
 
 			if adx > maxADX {

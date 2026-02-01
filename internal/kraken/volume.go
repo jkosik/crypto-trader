@@ -21,8 +21,10 @@ type VolumeResult struct {
 	Bid []string `json:"b"` // Bid price
 }
 
-// Get24hVolume returns the 24-hour trading volume in quote currency for a given trading pair
-// It uses the last 24h volume (Vol[1]) from Kraken's ticker API and multiplies it by the bid price
+// Get24hVolume returns the 24-hour trading pair volume expressed in quote currency
+// For ETH/BTC: returns how many BTC worth of ETH/BTC was traded (e.g., 150 BTC)
+// For BTC/USD: returns how many USD worth of BTC/USD was traded (e.g., 2,000,000 USD)
+// Calculation: takes base currency 24h volume and multiplies by bid price to convert to quote currency
 func Get24hVolume(baseCoin, quoteCoin string) (float64, error) {
 	// Convert to Kraken pair format (e.g., "ETH", "BTC" -> "ETH/BTC")
 	pair := baseCoin + "/" + quoteCoin
