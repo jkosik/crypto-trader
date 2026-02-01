@@ -12,9 +12,11 @@ import (
 
 const (
 	// Trading conditions
-	minSpreadPercent   = 0.5  // Minimum spread percentage required to place orders
-	minVolume24h       = 1000 // Minimum 24h volume in USD required to place orders
-	spreadNarrowFactor = 0.7  // How much to narrow the spread (0.0 to 1.0)
+	minSpreadPercent   = 0        // Minimum spread percentage required to place orders
+	minVolume24h       = 100000.0 // Minimum 24h volume in USD required to place orders
+	maxADX             = 20.0     // Maximum ADX value (0-20 = weak trend, ideal for spread trading)
+	adxPeriod          = 14       // ADX calculation period (standard is 14)
+	spreadAdjustFactor = 0.5      // Spread adjustment: 0=no spread, 0.5=half spread, 1=full spread, 2=double spread, etc.
 )
 
 // Kraken crypto trading bot that executes spread trades on specified cryptocurrency pairs.
@@ -149,44 +151,79 @@ func main() {
 
 	// Place spread orders
 	if *orderFlag {
-		// Place order only if spread is within the boundaries
+		// Variables to store conditions when trade is placed
+		var finalADX float64
+		var spreadInfo *kraken.SpreadInfo
+
+		// Place order only if all conditions are met: spread, volume, and ADX
 		for {
-			// Calculate spread percentage
-			fmt.Println("\nGetting fresh spread boundary to assess max. spread and min. volume...")
-			spreadInfo, err := kraken.GetTickerInfo(*baseCoin)
+			fmt.Println("\n=== Checking Trading Conditions ===")
+
+			// Check 1: Spread percentage
+			var err error
+			spreadInfo, err = kraken.GetTickerInfo(*baseCoin)
 			if err != nil {
-				fmt.Println("Error getting spread boundary:", err)
+				fmt.Println("Error getting spread info:", err)
 				os.Exit(1)
 			}
 
 			spreadPercent := (spreadInfo.Spread / spreadInfo.BidPrice) * 100
-			fmt.Printf("\nCurrent spread: %.4f%%\n", spreadPercent)
+			fmt.Printf("Current spread: %.4f%% (min required: %.2f%%)\n", spreadPercent, minSpreadPercent)
 
-			// Get 24h volume
+			// Check 2: 24h volume
 			volume24h, err := kraken.Get24hVolume(*baseCoin)
 			if err != nil {
 				fmt.Printf("Error getting 24h volume: %v\n", err)
 				os.Exit(1)
 			}
-			fmt.Printf("24h Volume: %.2f USD\n", volume24h)
+			fmt.Printf("24h Volume: %.2f USD (min required: %.2f USD)\n", volume24h, minVolume24h)
 
-			// Skip and re-try if spread and volume are not within the boundaries
+			// Check 3: ADX indicator
+			adx, err := kraken.GetADXInfo(*baseCoin, adxPeriod)
+			if err != nil {
+				fmt.Printf("Error calculating ADX: %v\n", err)
+				os.Exit(1)
+			}
+			fmt.Printf("ADX(%d): %.2f (max allowed: %.2f)\n", adxPeriod, adx, maxADX)
+
+			// Validate all conditions
+			conditionsMet := true
+
 			if spreadPercent < minSpreadPercent {
-				fmt.Println("❌ Spread is not within the boundaries. Sleeping for a while...")
-				time.Sleep(10 * time.Second)
-				continue
+				fmt.Printf("❌ Spread too low (%.4f%% < %.2f%%)\n", spreadPercent, minSpreadPercent)
+				conditionsMet = false
+			} else {
+				fmt.Printf("✅ Spread OK (%.4f%% >= %.2f%%)\n", spreadPercent, minSpreadPercent)
 			}
+
 			if volume24h < minVolume24h {
-				fmt.Println("❌ 24h volume is not within the boundaries. Sleeping for a while...")
-				time.Sleep(10 * time.Second)
+				fmt.Printf("❌ Volume too low (%.2f < %.2f USD)\n", volume24h, minVolume24h)
+				conditionsMet = false
+			} else {
+				fmt.Printf("✅ Volume OK (%.2f >= %.2f USD)\n", volume24h, minVolume24h)
+			}
+
+			if adx > maxADX {
+				fmt.Printf("❌ ADX too high (%.2f > %.2f) - strong trend detected, not ideal for spread trading\n", adx, maxADX)
+				conditionsMet = false
+			} else {
+				fmt.Printf("✅ ADX OK (%.2f <= %.2f) - weak trend, good for spread trading\n", adx, maxADX)
+			}
+
+			if !conditionsMet {
+				fmt.Println("\n⏳ Conditions not met. Waiting 30 seconds before rechecking...")
+				time.Sleep(30 * time.Second)
 				continue
 			}
 
-			fmt.Println("✅ Spread and volume are within the boundaries. Placing orders.")
+			// Store ADX value when conditions are met
+			finalADX = adx
+
+			fmt.Println("\n✅ All conditions met! Placing orders...")
 			break
 		}
 
-		buyTxId, sellTxId, estimatedProfit, estimatedPercentGain, err := kraken.PlaceSpreadOrders(*baseCoin, spreadInfo, *volume, *untradeable, spreadNarrowFactor)
+		buyTxId, sellTxId, estimatedProfit, estimatedPercentGain, err := kraken.PlaceSpreadOrders(*baseCoin, spreadInfo, *volume, *untradeable, spreadAdjustFactor, finalADX, adxPeriod)
 		if err != nil {
 			fmt.Printf("Error placing spread orders: %v\n", err)
 			os.Exit(1)
@@ -240,32 +277,44 @@ func main() {
 				buyPrice, _ := strconv.ParseFloat(buyOrder.Descr.Price, 64)
 				sellPrice, _ := strconv.ParseFloat(sellOrder.Descr.Price, 64)
 
+				// Calculate actual profit from executed prices
+				actualProfit := (sellPrice - buyPrice) * (*volume)
+				actualPercentGain := ((sellPrice - buyPrice) / buyPrice) * 100
+				netProfit := actualProfit - totalFees
+
+				fmt.Printf("Actual profit: %.2f USD (%.4f%% gain)\n", actualProfit, actualPercentGain)
 				fmt.Printf("Total Fees: %.2f USD (Buy: %.2f, Sell: %.2f)\n", totalFees, buyFee, sellFee)
+				fmt.Printf("Net profit (after fees): %.2f USD\n", netProfit)
 				slackErr := kraken.SendSlackMessage(fmt.Sprintf(
 					"✅ Trade %s/USD executed\n"+
 						"Volume: %.5f\n"+
 						"Buy price: %.6f\n"+
 						"Sell price: %.6f\n"+
-						"Estimated profit: %.2f USD (%.4f%%)\n"+
+						"Actual profit: %.2f USD (%.4f%% gain)\n"+
+						"Fees: %.2f USD (Buy: %.2f, Sell: %.2f)\n"+
+						"Net profit: %.2f USD\n"+
 						"Buy Order ID: %s\n"+
 						"Sell Order ID: %s\n"+
-						"Spread now: %.6f (%.4f%%)\n"+
+						"Current spread: %.6f (%.4f%%)\n"+
 						"24h Volume: %.2f USD\n"+
-						"Fees: %.2f USD (Buy: %.2f, Sell: %.2f)",
+						"ADX(%d) at entry: %.2f",
 					*baseCoin,
 					*volume,
 					buyPrice,
 					sellPrice,
-					estimatedProfit,
-					estimatedPercentGain,
+					actualProfit,
+					actualPercentGain,
+					totalFees,
+					buyFee,
+					sellFee,
+					netProfit,
 					buyTxId,
 					sellTxId,
 					spread,
 					spreadPercent,
 					volume24h,
-					totalFees,
-					buyFee,
-					sellFee,
+					adxPeriod,
+					finalADX,
 				))
 				if slackErr != nil {
 					fmt.Printf("Error sending Slack message: %v\n", slackErr)

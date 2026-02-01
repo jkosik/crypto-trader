@@ -131,24 +131,25 @@ func PlaceLimitOrder(coin string, price float64, volume float64, isBuy bool, unt
 }
 
 // PlaceSpreadOrders places a spread of buy and sell orders
-// spreadNarrowFactor controls how much to narrow the spread (0.0 to 1.0):
-// - 0.0 means no narrowing (use full spread)
-// - 0.5 means half the spread
-// - 0.25 means quarter of the spread
-// - 1.0 means place orders at center price (minimum spread)
-func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untradeable bool, spreadNarrowFactor float64) (string, string, float64, float64, error) {
-	// Ensure spreadNarrowFactor is between 0 and 1
-	if spreadNarrowFactor < 0 {
-		spreadNarrowFactor = 0
-	} else if spreadNarrowFactor > 1 {
-		spreadNarrowFactor = 1
+// spreadAdjustFactor controls the spread size:
+// - 0.0 = no spread (orders at center price, no profit potential)
+// - 0.5 = half of the original spread
+// - 1.0 = full original spread (use market bid/ask)
+// - 2.0 = double the original spread
+// - 3.0 = triple the original spread
+// Values > 1.0 extend the spread beyond market prices
+func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untradeable bool, spreadAdjustFactor float64, adx float64, adxPeriod int) (string, string, float64, float64, error) {
+	// Ensure spreadAdjustFactor is non-negative
+	if spreadAdjustFactor < 0 {
+		spreadAdjustFactor = 0
 	}
 
 	fmt.Printf("\nBid price: %.6f\n", spreadInfo.BidPrice)
 	fmt.Printf("Ask price: %.6f\n", spreadInfo.AskPrice)
 
-	// Calculate the center price of the spread
+	// Calculate the center price and half spread
 	centerPrice := (spreadInfo.AskPrice + spreadInfo.BidPrice) / 2
+	halfSpread := (spreadInfo.AskPrice - spreadInfo.BidPrice) / 2
 
 	// Check decimal places in both bid and ask prices
 	bidStr := strconv.FormatFloat(spreadInfo.BidPrice, 'f', -1, 64)
@@ -171,30 +172,34 @@ func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untr
 	fmt.Printf("Ask: %s (%d decimals)\n", askStr, askDecimals)
 	fmt.Printf("Using %d decimal places\n", decimals)
 
-	// Calculate new buy and sell prices based on the narrowing factor
-	newBuyPrice := spreadInfo.BidPrice + (centerPrice-spreadInfo.BidPrice)*spreadNarrowFactor
-	newSellPrice := spreadInfo.AskPrice - (spreadInfo.AskPrice-centerPrice)*spreadNarrowFactor
+	// Calculate new buy and sell prices based on the adjust factor
+	// newBuyPrice = center - (halfSpread * factor)
+	// newSellPrice = center + (halfSpread * factor)
+	newBuyPrice := centerPrice - (halfSpread * spreadAdjustFactor)
+	newSellPrice := centerPrice + (halfSpread * spreadAdjustFactor)
 
 	// Round to detected decimal places
 	multiplier := math.Pow10(decimals)
 	newBuyPrice = math.Round(newBuyPrice*multiplier) / multiplier
 	newSellPrice = math.Round(newSellPrice*multiplier) / multiplier
 
-	// Check if narrowed prices are too close or equal
+	// Check if adjusted prices are too close or equal (only happens with factor = 0)
 	if newSellPrice <= newBuyPrice {
 		// Send Slack notification about the error
 		slackErr := SendSlackMessage(fmt.Sprintf(
 			"❌ Trade %s/USD cancelled\n"+
-				"Reason: Narrowed prices are too close (buy: %.6f, sell: %.6f)\n",
+				"Reason: Adjusted prices are too close (buy: %.6f, sell: %.6f)\n"+
+				"spreadAdjustFactor: %.2f\n",
 			coin,
 			newBuyPrice,
 			newSellPrice,
+			spreadAdjustFactor,
 		))
 		if slackErr != nil {
 			fmt.Printf("Warning: Failed to send Slack notification: %v\n", slackErr)
 		}
 
-		return "", "", 0, 0, fmt.Errorf("narrowed prices are too close or equal (buy: %.6f, sell: %.6f). Please use a lower spread narrowing factor", newBuyPrice, newSellPrice)
+		return "", "", 0, 0, fmt.Errorf("adjusted prices are too close or equal (buy: %.6f, sell: %.6f) with spreadAdjustFactor %.2f", newBuyPrice, newSellPrice, spreadAdjustFactor)
 	}
 
 	// Calculate estimated profit based on the new prices
@@ -203,17 +208,22 @@ func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untr
 	// Calculate estimated percent gain based on the buy price
 	estimatedPercentGain := ((newSellPrice - newBuyPrice) / newBuyPrice) * 100
 
+	// Calculate the new spread
+	newSpread := newSellPrice - newBuyPrice
+
 	// Print spread information
 	fmt.Printf("\n🔄 Placing spread orders for %s/USD:\n", coin)
 	fmt.Printf("Volume: %.5f\n", volume)
-	fmt.Printf("Original buy price: %.6f\n", spreadInfo.BidPrice)
-	fmt.Printf("Original sell price: %.6f\n", spreadInfo.AskPrice)
-	fmt.Printf("Original spread: %.6f (%.4f%%)\n", spreadInfo.Spread, (spreadInfo.Spread/spreadInfo.BidPrice)*100)
-	fmt.Printf("Spread narrowing: %.2f%%\n", spreadNarrowFactor*100)
+	fmt.Printf("Market bid price: %.6f\n", spreadInfo.BidPrice)
+	fmt.Printf("Market ask price: %.6f\n", spreadInfo.AskPrice)
+	fmt.Printf("Market spread: %.6f (%.4f%%)\n", spreadInfo.Spread, (spreadInfo.Spread/spreadInfo.BidPrice)*100)
+	fmt.Printf("ADX(%d) at entry: %.2f\n", adxPeriod, adx)
+	fmt.Printf("Spread adjust factor: %.2f\n", spreadAdjustFactor)
 	fmt.Printf("Center price: %.6f\n", centerPrice)
-	fmt.Printf("Narrowed buy price: %.6f\n", newBuyPrice)
-	fmt.Printf("Narrowed sell price: %.6f\n", newSellPrice)
-	fmt.Printf("Estimated profit: %.2f USD (%.4f%%)\n", estimatedProfit, estimatedPercentGain)
+	fmt.Printf("Adjusted buy price: %.6f\n", newBuyPrice)
+	fmt.Printf("Adjusted sell price: %.6f\n", newSellPrice)
+	fmt.Printf("Adjusted spread: %.6f (%.4f%% of market spread)\n", newSpread, (newSpread/spreadInfo.Spread)*100)
+	fmt.Printf("Estimated profit: %.2f USD (%.4f%% gain)\n", estimatedProfit, estimatedPercentGain)
 
 	// Place buy order at the new buy price
 	buyTxId, err := PlaceLimitOrder(coin, newBuyPrice, volume, true, untradeable)
@@ -235,14 +245,16 @@ func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untr
 	slackErr := SendSlackMessage(fmt.Sprintf(
 		"🔄 Placing spread orders for %s/USD\n"+
 			"Volume: %.5f\n"+
-			"Original buy price: %.6f\n"+
-			"Original sell price: %.6f\n"+
-			"Original spread: %.6f (%.4f%%)\n"+
-			"Spread narrowing: %.2f%%\n"+
+			"Market bid price: %.6f\n"+
+			"Market ask price: %.6f\n"+
+			"Market spread: %.6f (%.4f%%)\n"+
+			"ADX(%d) at entry: %.2f\n"+
+			"Spread adjust factor: %.2f\n"+
 			"Center price: %.6f\n"+
-			"Narrowed buy price: %.6f\n"+
-			"Narrowed sell price: %.6f\n"+
-			"Estimated profit: %.2f USD (%.4f%%)\n"+
+			"Adjusted buy price: %.6f\n"+
+			"Adjusted sell price: %.6f\n"+
+			"Adjusted spread: %.6f (%.2f%% of market)\n"+
+			"Estimated profit: %.2f USD (%.4f%% gain)\n"+
 			"Buy Order ID: %s\n"+
 			"Sell Order ID: %s",
 		coin,
@@ -251,10 +263,14 @@ func PlaceSpreadOrders(coin string, spreadInfo *SpreadInfo, volume float64, untr
 		spreadInfo.AskPrice,
 		spreadInfo.Spread,
 		(spreadInfo.Spread/spreadInfo.BidPrice)*100,
-		spreadNarrowFactor*100,
+		adxPeriod,
+		adx,
+		spreadAdjustFactor,
 		centerPrice,
 		newBuyPrice,
 		newSellPrice,
+		newSpread,
+		(newSpread/spreadInfo.Spread)*100,
 		estimatedProfit,
 		estimatedPercentGain,
 		buyTxId,

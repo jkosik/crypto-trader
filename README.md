@@ -70,11 +70,13 @@ go run cmd/trader/main.go -coin GHIBLI -volume 3000.0 -order
 go run cmd/trader/main.go -coin GHIBLI -volume 3000.0 -order -untradeable
 ```
 
-#### Further trading conditions
+#### Trading conditions
 Can be set in `cmd/trader/main.go`:
-- minSpreadPercent   = 0.5    // Minimum spread percentage required to place orders
-- minVolume24h       = 100000 // Minimum 24h volume in USD required to place orders
-- spreadNarrowFactor = 0.7    // How much to narrow the spread (0.0 to 1.0)
+- **minSpreadPercent** = 0.5  // Minimum spread percentage required to place orders
+- **minVolume24h** = 1000.0 // Minimum 24h volume in USD required to place orders
+- **maxADX** = 20.0 // Maximum ADX value (ADX < 20 = weak trend, ideal for spread trading)
+- **adxPeriod** = 14 // ADX calculation period (standard is 14)
+- **spreadAdjustFactor** = 0.7  // Spread adjustment: 0=no spread, 0.5=half, 1=full, 2=double, etc.
 
 ### Loop Bot
 Executes trades in a loop:
@@ -89,10 +91,23 @@ go run cmd/utils/volume-spread-scanner.go
 ```
 
 ### Trading Strategy
-The bot uses a fixed spread narrowing factor of 0.7 (70%) to place orders closer to the center price. This means:
-- Buy orders are placed 70% of the way from the bid price towards the center price
-- Sell orders are placed 70% of the way from the ask price towards the center price
-- This helps increase the probability of order execution while maintaining a profitable spread
+
+#### Spread Adjustment
+The bot uses `spreadAdjustFactor` to control spread size. The factor multiplies the market spread:
+- **0** = no spread (orders at center price, no profit)
+- **0.5** = half the market spread (higher execution probability, lower profit)
+- **1.0** = full market spread (use market bid/ask prices)
+- **2.0** = double the market spread (lower execution probability, higher profit potential)
+
+Example: Market spread $0.10, factor 0.7 → adjusted spread $0.07. Factor < 1 increases execution probability by placing orders closer to center price.
+
+#### ADX Indicator Filter
+The bot checks ADX (Average Directional Index) before placing trades:
+- **ADX < 20** = weak/no trend → ✅ **Good for spread trading** (ranging market)
+- **ADX 20-40** = strong trend → ❌ Avoid (market trending, spread trading risky)
+- **ADX > 40** = very strong trend → ❌ Avoid (high directional movement)
+
+The bot only places trades when **ADX ≤ 20**, ensuring market conditions favor spread strategies. If conditions aren't met, the bot waits 30 seconds and rechecks.
 
 
 ## Asset Codes
@@ -103,7 +118,7 @@ Some Kraken API endpoints needs conversion from human-readable codes to asset co
 - SOL → SOL.F
 - SUNDOG → SUNDOG
 
-If unsure, dry-run the crypto-trader by omittun `-order` flag and check the balance JSON output.
+If unsure, dry-run the crypto-trader by omitting `-order` flag and check the balance JSON output.
 Add the pair to the `KrakenAssetCode` function in `internal/kraken/api.go` if needed.
 
 Example:
