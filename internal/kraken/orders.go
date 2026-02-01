@@ -285,7 +285,7 @@ func PlaceSpreadOrders(baseCoin, quoteCoin string, spreadInfo *SpreadInfo, volum
 	fmt.Printf("Adjusted buy price: %.6f\n", newBuyPrice)
 	fmt.Printf("Adjusted sell price: %.6f\n", newSellPrice)
 	fmt.Printf("Adjusted spread: %.6f (%.4f%% of market spread)\n", newSpread, (newSpread/spreadInfo.Spread)*100)
-	fmt.Printf("Estimated profit: %.2f %s (%.4f%% gain)\n", estimatedProfit, quoteCoin, estimatedPercentGain)
+	fmt.Printf("Estimated profit: %.8f %s (%.4f%% gain)\n", estimatedProfit, quoteCoin, estimatedPercentGain)
 
 	// Place buy order at the new buy price
 	buyTxId, err := PlaceLimitOrder(baseCoin, quoteCoin, newBuyPrice, volume, true, untradeable, decimals)
@@ -316,7 +316,7 @@ func PlaceSpreadOrders(baseCoin, quoteCoin string, spreadInfo *SpreadInfo, volum
 			"Adjusted buy price: %.6f\n"+
 			"Adjusted sell price: %.6f\n"+
 			"Adjusted spread: %.6f (%.2f%% of market)\n"+
-			"Estimated profit: %.2f %s (%.4f%% gain)\n"+
+			"Estimated profit: %.8f %s (%.4f%% gain)\n"+
 			"Buy Order ID: %s\n"+
 			"Sell Order ID: %s",
 		baseCoin,
