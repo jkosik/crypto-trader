@@ -13,38 +13,45 @@ import (
 // This program runs the trader bot multiple times with the same parameters and logs the results.
 //
 // Usage:
-//   go run cmd/loop/main.go -coin BTC -volume 0.1 -iterations 20
+//   go run cmd/loop/main.go -pair BTC/USD -volume 0.1 -iterations 20
 //
 // Flags:
-//   -coin string      Base coin to trade (e.g. BTC, SOL)
+//   -pair string      Trading pair (e.g. BTC/USD, ETH/BTC, SUNDOG/USD)
 //   -volume float     Base coin volume to trade
 //   -iterations int   Number of trades to execute (default: 10)
 //
 // Example:
 //   # Execute N iterations of trades
-//   go run cmd/loop/main.go -coin SUNDOG -volume 300 -iterations 2
+//   go run cmd/loop/main.go -pair SUNDOG/USD -volume 300 -iterations 2
 //
 //   # Execute 10 trades (default iteration count)
-//   go run cmd/loop/main.go -coin SUNDOG -volume 300
+//   go run cmd/loop/main.go -pair ETH/BTC -volume 0.01
 
 func main() {
-	baseCoin := flag.String("coin", "", "Base coin to trade (e.g. BTC, SOL)")
+	pair := flag.String("pair", "", "Trading pair (e.g. BTC/USD, ETH/BTC, SUNDOG/USD)")
 	volume := flag.Float64("volume", 0.0, "Base coin volume to trade")
 	iterations := flag.Int("iterations", 10, "Number of trades to execute")
 	flag.Parse()
 
-	if *baseCoin == "" || *volume == 0.0 {
-		fmt.Println("Error: -coin and -volume flags are required")
-		fmt.Println("Usage: ./loop -coin <COIN> -volume <AMOUNT> [-iterations <NUMBER>]")
+	if *pair == "" || *volume == 0.0 {
+		fmt.Println("Error: -pair and -volume flags are required")
+		fmt.Println("Usage: ./loop -pair <PAIR> -volume <AMOUNT> [-iterations <NUMBER>]")
 		fmt.Println("\nFlags:")
-		fmt.Println("  -coin <COIN>    Base coin to trade (e.g. BTC, SOL)")
+		fmt.Println("  -pair <PAIR>    Trading pair (e.g. BTC/USD, ETH/BTC, SUNDOG/USD)")
 		fmt.Println("  -volume <AMOUNT> Base coin volume to trade")
 		fmt.Println("  -iterations <NUMBER> Number of trades to execute (default: 10)")
 		os.Exit(1)
 	}
 
-	// Create report file
-	report := fmt.Sprintf("trades-%s-%s.txt", *baseCoin, time.Now().Format("2006-01-02-15-04"))
+	// Create report file (replace / with - for filename)
+	pairFilename := fmt.Sprintf("%s", *pair)
+	// Replace / with - for valid filename (e.g., ETH/BTC becomes ETH-BTC)
+	for i, c := range pairFilename {
+		if c == '/' {
+			pairFilename = pairFilename[:i] + "-" + pairFilename[i+1:]
+		}
+	}
+	report := fmt.Sprintf("trades-%s-%s.txt", pairFilename, time.Now().Format("2006-01-02-15-04"))
 	reportFile, err := os.Create(report)
 	if err != nil {
 		fmt.Printf("Error creating report file: %v\n", err)
@@ -60,31 +67,35 @@ func main() {
 	}
 
 	for i := 1; i <= *iterations; i++ {
-		fmt.Printf("Running iteration %d\n", i)
+		fmt.Printf("\n=== Running iteration %d/%d for %s ===\n", i, *iterations, *pair)
 
-		// Run the trader command
-		cmd := exec.Command("go", "run", traderPath, "-coin", *baseCoin, "-order", "-volume", fmt.Sprintf("%f", *volume))
+		// Run the trader command with -pair flag
+		cmd := exec.Command("go", "run", traderPath, "-pair", *pair, "-order", "-volume", fmt.Sprintf("%f", *volume))
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 
 		if err := cmd.Run(); err != nil {
-			fmt.Printf("Iteration %d failed at %s\n", i, time.Now().Format("2006-01-02 15:04:05"))
+			fmt.Printf("\n❌ Iteration %d failed at %s\n", i, time.Now().Format("2006-01-02 15:04:05"))
 			os.Exit(1)
 		}
 
 		// Log successful trade
-		successMsg := fmt.Sprintf("%s - SUCCESSFUL TRADE %d\n", time.Now().Format("2006-01-02 15:04:05"), i)
+		successMsg := fmt.Sprintf("%s - ✅ SUCCESSFUL TRADE %d/%d for %s\n", time.Now().Format("2006-01-02 15:04:05"), i, *iterations, *pair)
 		if _, err := reportFile.WriteString(successMsg); err != nil {
 			fmt.Printf("Error writing to report file: %v\n", err)
 		}
+		fmt.Printf("\n✅ Iteration %d/%d completed successfully\n", i, *iterations)
 
 		// Add a delay between iterations to prevent too rapid execution
 		if i < *iterations {
 			delayMinutes := 5
-			fmt.Printf("\nWaiting %d minutes before next iteration...\n", delayMinutes)
+			fmt.Printf("\n⏳ Waiting %d minutes before next iteration...\n", delayMinutes)
 			time.Sleep(time.Duration(delayMinutes) * time.Minute)
 		}
 	}
+
+	fmt.Printf("\n🎉 All %d iterations completed successfully!\n", *iterations)
+	fmt.Printf("Report saved to: %s\n", report)
 }
 
 // getTraderPath returns the correct path to the trader binary based on current directory

@@ -89,10 +89,13 @@ Can be set in `cmd/trader/main.go`:
 - **spreadAdjustFactor** = 0.5  // Spread adjustment: 0=no spread, 0.5=half, 1=full, 2=double, etc.
 
 ### Loop Bot
-Executes trades in a loop:
+Executes trades in a loop with 5-minute delays between iterations:
 ```bash
-# Note: Loop bot still uses old -coin flag (to be updated)
-go run cmd/loop/main.go -coin GHIBLI -volume 40000 -iterations 50
+# Execute 50 iterations of ETH/BTC trades
+go run cmd/loop/main.go -pair ETH/BTC -volume 0.01 -iterations 50
+
+# Execute 20 iterations of SUNDOG/USD trades
+go run cmd/loop/main.go -pair SUNDOG/USD -volume 300 -iterations 20
 ```
 
 ## Utils
